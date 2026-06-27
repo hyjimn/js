@@ -166,8 +166,8 @@ export default function SanzeCatalog() {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     
-    // Hash de "Sanze2026"
-    if (hashHex === '78b4088a87b5a8370de8b14a2bf1de6b02008fb56de4cc95c7ad52382c40c741') {
+    // Hash de "Abril81"
+    if (hashHex === 'ebed7beef901d5f29bc6dd193ac316b8bbd19b82c7c797d87bbfa64cde9aac4d') {
       setIsAdmin(true);
       sessionStorage.setItem('sanze_admin_active', 'true');
       alert("Acceso concedido. Modo Administrador activo.");
