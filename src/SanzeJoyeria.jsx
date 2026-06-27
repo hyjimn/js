@@ -1,6 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw } from 'lucide-react';
 import initialProductsData from './productos.json';
+
+function SparkleCanvas() {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animId;
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    const COLORS = ['#D8CFBC', '#FFFBF4', '#c4bba8', '#e8e0d0', '#a89e8e', '#FFFBF4', '#D8CFBC'];
+    const COUNT = 75;
+    const sparkles = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      size: Math.random() * 1.8 + 0.3,
+      opacity: Math.random() * 0.5 + 0.05,
+      targetOpacity: Math.random() * 0.55 + 0.05,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - 0.5) * 0.20,
+      vy: (Math.random() - 0.5) * 0.20,
+      twinkleRate: Math.random() * 0.014 + 0.003,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.007,
+    }));
+    const drawStar = (x, y, size, rot) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.beginPath();
+      const r1 = size * 3.8;
+      const r2 = size * 0.45;
+      for (let i = 0; i < 4; i++) {
+        const ao = (i / 4) * Math.PI * 2;
+        const ai = ao + Math.PI / 4;
+        if (i === 0) ctx.moveTo(Math.cos(ao) * r1, Math.sin(ao) * r1);
+        else ctx.lineTo(Math.cos(ao) * r1, Math.sin(ao) * r1);
+        ctx.lineTo(Math.cos(ai) * r2, Math.sin(ai) * r2);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    const loop = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      sparkles.forEach(s => {
+        const diff = s.targetOpacity - s.opacity;
+        if (Math.abs(diff) < 0.008) {
+          s.targetOpacity = Math.random() * 0.55 + 0.04;
+        }
+        s.opacity += diff * s.twinkleRate * 4;
+        s.x += s.vx;
+        s.y += s.vy;
+        s.rotation += s.rotSpeed;
+        if (s.x < -10) s.x = canvas.width + 10;
+        if (s.x > canvas.width + 10) s.x = -10;
+        if (s.y < -10) s.y = canvas.height + 10;
+        if (s.y > canvas.height + 10) s.y = -10;
+        ctx.globalAlpha = Math.max(0, Math.min(0.9, s.opacity));
+        ctx.fillStyle = s.color;
+        drawStar(s.x, s.y, s.size, s.rotation);
+      });
+      ctx.globalAlpha = 1;
+      animId = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    />
+  );
+}
 
 const DEFAULT_PRODUCTS = {
   oro: {
@@ -223,17 +313,17 @@ export default function SanzeCatalog() {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
         :root {
-          --bg-primary: #1a1a1a;
-          --bg-secondary: #222222;
-          --bg-card: #222222;
-          --bg-card-hover: #2a2a2a;
-          --accent: #C2D8C4;
-          --accent-hover: #d1e2d3;
-          --accent-glow: rgba(194, 216, 196, 0.15);
-          --border: rgba(255, 255, 255, 0.08);
-          --border-hover: rgba(194, 216, 196, 0.3);
-          --text-main: #f3efeb;
-          --text-muted: #a4adab;
+          --bg-primary: #060705;
+          --bg-secondary: #0e0f0b;
+          --bg-card: #111209;
+          --bg-card-hover: #181910;
+          --accent: #D8CFBC;
+          --accent-hover: #e6dfd0;
+          --accent-glow: rgba(216, 207, 188, 0.15);
+          --border: rgba(216, 207, 188, 0.12);
+          --border-hover: rgba(216, 207, 188, 0.40);
+          --text-main: #FFFBF4;
+          --text-muted: #9a9184;
           --rounded-lg: 16px;
           --rounded-md: 12px;
           --rounded-sm: 8px;
@@ -251,8 +341,9 @@ export default function SanzeCatalog() {
           color: var(--text-main);
           -webkit-font-smoothing: antialiased;
           background-image: 
-            radial-gradient(circle at 5% 15%, rgba(194, 216, 196, 0.04) 0%, transparent 35%),
-            radial-gradient(circle at 95% 85%, rgba(194, 216, 196, 0.04) 0%, transparent 35%);
+            radial-gradient(circle at 5% 15%, rgba(86, 84, 73, 0.22) 0%, transparent 40%),
+            radial-gradient(circle at 95% 85%, rgba(86, 84, 73, 0.18) 0%, transparent 40%),
+            radial-gradient(circle at 50% 50%, rgba(216, 207, 188, 0.02) 0%, transparent 60%);
           font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
         }
 
@@ -264,18 +355,18 @@ export default function SanzeCatalog() {
           background: var(--bg-primary);
         }
         ::-webkit-scrollbar-thumb {
-          background: rgba(194, 216, 196, 0.2);
+          background: rgba(216, 207, 188, 0.20);
           border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-          background: rgba(194, 216, 196, 0.4);
+          background: rgba(216, 207, 188, 0.40);
         }
 
         /* Glassmorphism Header */
         .header {
           position: sticky;
           top: 0;
-          background-color: rgba(10, 10, 12, 0.85);
+          background-color: rgba(17, 18, 13, 0.92);
           backdrop-filter: blur(25px);
           -webkit-backdrop-filter: blur(25px);
           border-bottom: 1px solid var(--border);
@@ -294,14 +385,16 @@ export default function SanzeCatalog() {
           letter-spacing: -0.02em;
           cursor: pointer;
           color: var(--text-main);
-          background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
+          background: linear-gradient(90deg, #FFFBF4 0%, #D8CFBC 35%, #FFFBF4 60%, #e6dfd0 100%);
+          background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+          animation: shimmerBg 4s linear infinite;
           transition: var(--transition);
         }
 
         .logo:hover {
-          opacity: 0.9;
+          opacity: 0.85;
         }
 
         .header-nav {
@@ -395,16 +488,31 @@ export default function SanzeCatalog() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          overflow: hidden;
         }
 
         .hero::before {
           content: '';
           position: absolute;
           top: -10%;
-          width: 250px;
-          height: 250px;
-          background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-          z-index: -1;
+          width: 420px;
+          height: 420px;
+          background: radial-gradient(circle, rgba(86, 84, 73, 0.35) 0%, transparent 70%);
+          z-index: 0;
+          pointer-events: none;
+        }
+
+        .hero::after {
+          content: '';
+          position: absolute;
+          left: -10%;
+          right: -10%;
+          top: 0;
+          height: 1px;
+          background: linear-gradient(to right, transparent, rgba(216, 207, 188, 0.55), transparent);
+          animation: scanline 8s linear infinite;
+          z-index: 1;
+          pointer-events: none;
         }
 
         .hero-title {
@@ -413,11 +521,14 @@ export default function SanzeCatalog() {
           font-weight: 800;
           letter-spacing: -0.03em;
           margin-bottom: 0.5rem;
-          background: linear-gradient(to bottom, #ffffff 50%, var(--text-muted) 100%);
+          background: linear-gradient(90deg, #FFFBF4 0%, #D8CFBC 35%, #FFFBF4 65%, #c4bba8 100%);
+          background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          animation: fadeInDown 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          animation: fadeInDown 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards, shimmerBg 5s linear 0.9s infinite;
           line-height: 1;
+          position: relative;
+          z-index: 2;
         }
 
         .hero-subtitle {
@@ -430,6 +541,8 @@ export default function SanzeCatalog() {
           margin-bottom: 3rem;
           animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
           opacity: 0;
+          position: relative;
+          z-index: 2;
         }
 
         /* Materials Grid */
@@ -447,7 +560,7 @@ export default function SanzeCatalog() {
         .material-block {
           aspect-ratio: 1.6;
           border: 1px solid var(--border);
-          background: linear-gradient(135deg, rgba(24, 25, 31, 0.5) 0%, rgba(18, 19, 24, 0.8) 100%);
+          background: linear-gradient(135deg, rgba(14, 15, 11, 0.90) 0%, rgba(6, 7, 5, 0.98) 100%);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -457,6 +570,11 @@ export default function SanzeCatalog() {
           position: relative;
           overflow: hidden;
           border-radius: var(--rounded-lg);
+          animation: floatGem 6s ease-in-out infinite;
+        }
+
+        .material-block:nth-child(2) {
+          animation-delay: -3s;
         }
 
         .material-block::before {
@@ -481,9 +599,10 @@ export default function SanzeCatalog() {
         }
 
         .material-block:hover {
+          animation: none;
           border-color: var(--border-hover);
           transform: translateY(-6px);
-          box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 35px rgba(216, 207, 188, 0.18);
         }
 
         .material-block:hover::before {
@@ -500,7 +619,7 @@ export default function SanzeCatalog() {
           font-weight: 800;
           letter-spacing: -0.01em;
           z-index: 2;
-          background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
+          background: linear-gradient(135deg, #FFFBF4 40%, #D8CFBC 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           transition: var(--transition);
@@ -581,7 +700,17 @@ export default function SanzeCatalog() {
           position: relative;
           overflow: hidden;
           border-radius: var(--rounded-md);
+          animation: cardReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
+
+        .category-card:nth-child(1) { animation-delay: 0.05s; }
+        .category-card:nth-child(2) { animation-delay: 0.10s; }
+        .category-card:nth-child(3) { animation-delay: 0.15s; }
+        .category-card:nth-child(4) { animation-delay: 0.20s; }
+        .category-card:nth-child(5) { animation-delay: 0.25s; }
+        .category-card:nth-child(6) { animation-delay: 0.30s; }
+        .category-card:nth-child(7) { animation-delay: 0.35s; }
+        .category-card:nth-child(8) { animation-delay: 0.40s; }
 
         .category-card::after {
           content: '';
@@ -595,7 +724,7 @@ export default function SanzeCatalog() {
         .category-card:hover {
           border-color: var(--border-hover);
           transform: translateY(-4px);
-          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+          animation: categoryHoverGlow 2s ease-in-out infinite;
         }
 
         .category-card:hover::after {
@@ -626,11 +755,19 @@ export default function SanzeCatalog() {
 
         .product-card {
           cursor: pointer;
-          animation: fadeIn 0.5s ease-out;
+          animation: cardReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
           display: flex;
           flex-direction: column;
           gap: 1rem;
         }
+
+        .product-card:nth-child(1)  { animation-delay: 0.05s; }
+        .product-card:nth-child(2)  { animation-delay: 0.10s; }
+        .product-card:nth-child(3)  { animation-delay: 0.15s; }
+        .product-card:nth-child(4)  { animation-delay: 0.20s; }
+        .product-card:nth-child(5)  { animation-delay: 0.25s; }
+        .product-card:nth-child(6)  { animation-delay: 0.30s; }
+        .product-card:nth-child(n+7) { animation-delay: 0.35s; }
 
         .product-image {
           width: 100%;
@@ -649,7 +786,7 @@ export default function SanzeCatalog() {
         .product-card:hover .product-image {
           border-color: var(--border-hover);
           transform: translateY(-4px);
-          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+          animation: glowPulse 2s ease-in-out infinite;
         }
 
         .product-image img {
@@ -702,7 +839,7 @@ export default function SanzeCatalog() {
         .detail-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(10, 10, 12, 0.92);
+          background-color: rgba(6, 7, 5, 0.96);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           z-index: 100;
@@ -713,7 +850,7 @@ export default function SanzeCatalog() {
         .detail-header {
           position: sticky;
           top: 0;
-          background-color: rgba(10, 10, 12, 0.85);
+          background-color: rgba(6, 7, 5, 0.94);
           backdrop-filter: blur(15px);
           -webkit-backdrop-filter: blur(15px);
           border-bottom: 1px solid var(--border);
@@ -959,18 +1096,18 @@ export default function SanzeCatalog() {
           animation: none;
           transform: scale(1.15) rotate(90deg);
           background-color: var(--accent-hover);
-          box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 25px rgba(194, 216, 196, 0.5);
+          box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 28px rgba(216, 207, 188, 0.40);
         }
 
         @keyframes btnPulse {
           0% {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(194, 216, 196, 0.4);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(216, 207, 188, 0.45);
           }
           70% {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 12px rgba(194, 216, 196, 0);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 14px rgba(216, 207, 188, 0);
           }
           100% {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(194, 216, 196, 0);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(216, 207, 188, 0);
           }
         }
 
@@ -978,7 +1115,7 @@ export default function SanzeCatalog() {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(10, 10, 12, 0.85);
+          background-color: rgba(6, 7, 5, 0.92);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
           display: flex;
@@ -1057,7 +1194,7 @@ export default function SanzeCatalog() {
         }
 
         .btn-add-url {
-          background-color: rgba(223, 178, 108, 0.1);
+          background-color: rgba(216, 207, 188, 0.1);
           border: 1px solid var(--border);
           color: var(--accent);
           padding: 0 1.2rem;
@@ -1071,7 +1208,7 @@ export default function SanzeCatalog() {
 
         .btn-add-url:hover {
           background-color: var(--accent);
-          color: #121215;
+          color: #11120D;
           border-color: var(--accent);
         }
 
@@ -1109,7 +1246,7 @@ export default function SanzeCatalog() {
 
         .upload-zone:hover {
           border-color: var(--accent);
-          background-color: rgba(223, 178, 108, 0.03);
+          background-color: rgba(216, 207, 188, 0.05);
         }
 
         .upload-zone input {
@@ -1203,7 +1340,7 @@ export default function SanzeCatalog() {
 
         /* Footer */
         .footer {
-          background-color: #08080a;
+          background-color: #060705;
           border-top: 1px solid var(--border);
           padding: 4rem 2rem 2rem 2rem;
           margin-top: 6rem;
@@ -1281,6 +1418,38 @@ export default function SanzeCatalog() {
           to { opacity: 1; }
         }
 
+        @keyframes shimmerBg {
+          0%   { background-position: 0% center; }
+          100% { background-position: 200% center; }
+        }
+
+        @keyframes floatGem {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-9px); }
+        }
+
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 12px 24px rgba(0,0,0,0.4), 0 0 0px 0px rgba(216, 207, 188, 0.0); }
+          50%       { box-shadow: 0 12px 24px rgba(0,0,0,0.4), 0 0 20px 5px rgba(216, 207, 188, 0.18); }
+        }
+
+        @keyframes scanline {
+          0%   { transform: translateY(0);    opacity: 0; }
+          8%   { opacity: 1; }
+          92%  { opacity: 1; }
+          100% { transform: translateY(700px); opacity: 0; }
+        }
+
+        @keyframes cardReveal {
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
+
+        @keyframes categoryHoverGlow {
+          0%, 100% { box-shadow: 0 10px 20px rgba(0,0,0,0.35), 0 0  8px rgba(216, 207, 188, 0.08); }
+          50%       { box-shadow: 0 10px 20px rgba(0,0,0,0.35), 0 0 20px rgba(216, 207, 188, 0.22); }
+        }
+
         /* Responsive */
         @media (max-width: 992px) {
           .detail-grid {
@@ -1331,6 +1500,8 @@ export default function SanzeCatalog() {
           }
         }
       `}</style>
+
+      <SparkleCanvas />
 
       {/* Admin Bar */}
       {isAdmin && (
@@ -1493,7 +1664,7 @@ export default function SanzeCatalog() {
 
               <div className="upload-zone">
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', flexDirection: 'column', color: 'rgba(245, 241, 237, 0.5)' }}>
-                  <Upload size={24} color="#9a8560" />
+                  <Upload size={24} color="#D8CFBC" />
                   <span style={{ fontSize: '0.8rem', letterSpacing: '0.1em' }}>EXAMINAR ARCHIVOS</span>
                   <input type="file" multiple accept="image/*" onChange={handleImageUpload} />
                 </label>
@@ -1597,7 +1768,7 @@ export default function SanzeCatalog() {
       )}
 
       {/* Main Catalog Screens */}
-      <main style={{ position: 'relative' }}>
+      <main style={{ position: 'relative', zIndex: 1 }}>
         {currentPage === 'home' && !selectedMaterial && (
           <>
             <section className="hero">
@@ -1662,7 +1833,7 @@ export default function SanzeCatalog() {
                 </div>
 
                 <section className="section" style={{ textAlign: 'center', paddingBottom: '8rem' }}>
-                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '1.5rem', fontStyle: 'italic', lineHeight: '1.8', color: 'rgba(245, 241, 237, 0.75)', maxWidth: '700px', margin: '0 auto', fontWeight: 300 }}>
+                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '1.5rem', fontStyle: 'italic', lineHeight: '1.8', color: 'rgba(255, 251, 244, 0.70)', maxWidth: '700px', margin: '0 auto', fontWeight: 300 }}>
                     "Joyas exclusivas diseñadas para reflejar tu elegancia natural y trascender el tiempo."
                   </p>
                 </section>
@@ -1726,7 +1897,7 @@ export default function SanzeCatalog() {
         )}
       </main>
 
-      <footer className="footer">
+      <footer className="footer" style={{ position: 'relative', zIndex: 1 }}>
         <div className="footer-content">
           <div className="footer-section">
             <h3>Joyería Sanze</h3>
