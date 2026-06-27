@@ -189,15 +189,7 @@ export default function SanzeCatalog() {
     }, 3000);
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === 'true') {
-      setIsAdmin(true);
-      sessionStorage.setItem('sanze_admin_active', 'true');
-      // Limpiar el parámetro de la URL para que no quede visible
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+
 
   useEffect(() => {
     setActiveImageIndex(0);
