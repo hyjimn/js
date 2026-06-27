@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw } from 'lucide-react';
+import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
 import initialProductsData from './productos.json';
 
 function SparkleCanvas() {
@@ -92,6 +92,18 @@ function SparkleCanvas() {
   );
 }
 
+const materialNames = {
+  oro: 'Oro',
+  plata: 'Plata',
+  oro_laminado: 'Oro Laminado'
+};
+
+const materialSubtext = {
+  oro: 'Oro Sólido 14k / 18k',
+  plata: 'Plata Fina Ley .925',
+  oro_laminado: 'Oro Laminado de Alta Calidad'
+};
+
 const DEFAULT_PRODUCTS = {
   oro: {
     'Arete': [],
@@ -112,26 +124,84 @@ const DEFAULT_PRODUCTS = {
     'Esclava': [],
     'Huggie': [],
     'Pulso': []
+  },
+  oro_laminado: {
+    'Arete': [],
+    'Arracada': [],
+    'Broquel': [],
+    'Cadena': [],
+    'Dije': [],
+    'Esclava': [],
+    'Huggie': [],
+    'Pulso': []
   }
 };
 
 export default function SanzeCatalog() {
   const categories = {
     oro: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
-    plata: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso']
+    plata: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
+    oro_laminado: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso']
   };
 
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    return sessionStorage.getItem('sanze_admin_active') === 'true';
+  });
+
+  const logoClicksRef = useRef(0);
+  const logoClickTimeoutRef = useRef(null);
+
+  const promptAdminPassword = async () => {
+    const password = window.prompt("Ingrese la contraseña de administrador:");
+    if (!password) return;
+    
+    const msgBuffer = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    // Hash de "Sanze2026"
+    if (hashHex === '78b4088a87b5a8370de8b14a2bf1de6b02008fb56de4cc95c7ad52382c40c741') {
+      setIsAdmin(true);
+      sessionStorage.setItem('sanze_admin_active', 'true');
+      alert("Acceso concedido. Modo Administrador activo.");
+    } else {
+      alert("Contraseña incorrecta.");
+    }
+  };
+
+  const handleLogoClick = () => {
+    logoClicksRef.current += 1;
+    if (logoClicksRef.current === 5) {
+      promptAdminPassword();
+      logoClicksRef.current = 0;
+      return;
+    }
+    clearTimeout(logoClickTimeoutRef.current);
+    logoClickTimeoutRef.current = setTimeout(() => {
+      logoClicksRef.current = 0;
+    }, 3000);
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setIsAdmin(params.get('admin') === 'true');
+    if (params.get('admin') === 'true') {
+      setIsAdmin(true);
+      sessionStorage.setItem('sanze_admin_active', 'true');
+      // Limpiar el parámetro de la URL para que no quede visible
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedProduct]);
   
   // Load products from localStorage or use defaults
   const [products, setProducts] = useState(() => {
@@ -153,6 +223,10 @@ export default function SanzeCatalog() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editFormData, setEditFormData] = useState({ name: '', price: '', description: '', material: '', category: '', images: [] });
+  const [editUrlInput, setEditUrlInput] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -225,6 +299,76 @@ export default function SanzeCatalog() {
     }));
   };
 
+  const openEditForm = (product) => {
+    setEditingProductId(product.id);
+    setEditFormData({
+      name: product.name,
+      price: product.price,
+      description: product.description || '',
+      material: product.material,
+      category: product.category,
+      images: [...(product.images || [])]
+    });
+    setShowEditForm(true);
+  };
+
+  const updateProduct = () => {
+    if (editFormData.name && editFormData.price && editFormData.material && editFormData.category && editFormData.images.length > 0) {
+      const updated = {
+        id: editingProductId,
+        name: editFormData.name,
+        price: editFormData.price.startsWith('$') ? editFormData.price : `$${editFormData.price}`,
+        description: editFormData.description,
+        material: editFormData.material,
+        category: editFormData.category,
+        images: editFormData.images
+      };
+      setProducts(prev => {
+        const copy = JSON.parse(JSON.stringify(prev));
+        Object.keys(copy).forEach(mat => {
+          Object.keys(copy[mat]).forEach(cat => {
+            copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
+          });
+        });
+        copy[editFormData.material][editFormData.category].push(updated);
+        return copy;
+      });
+      setSelectedProduct(updated);
+      setShowEditForm(false);
+    }
+  };
+
+  const handleEditImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setEditFormData(prev => ({
+          ...prev,
+          images: [...prev.images, { src: event.target.result, id: Date.now() + Math.random() }]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAddEditImageUrl = () => {
+    if (editUrlInput.trim()) {
+      setEditFormData(prev => ({
+        ...prev,
+        images: [...prev.images, { src: editUrlInput.trim(), id: Date.now() + Math.random() }]
+      }));
+      setEditUrlInput('');
+    }
+  };
+
+  const removeEditImage = (imageId) => {
+    setEditFormData(prev => ({
+      ...prev,
+      images: prev.images.filter(img => img.id !== imageId)
+    }));
+  };
+
   const deleteProduct = (productId) => {
     setProducts(prev => {
       const newProducts = { ...prev };
@@ -284,7 +428,8 @@ export default function SanzeCatalog() {
 
   const handleWhatsAppContact = (product) => {
     const phoneNumber = '528661005158'; // Joyería Sanze Phone
-    const message = `Hola Joyería Sanze, estoy interesado en recibir información de la pieza de catálogo:\n\n*${product.name}*\nMaterial: ${product.material === 'oro' ? 'Oro' : 'Plata'}\nCategoría: ${product.category}\nPrecio: ${product.price}\n\nEnlace: ${window.location.href}`;
+    const matName = materialNames[product.material] || product.material;
+    const message = `Hola Joyería Sanze, estoy interesado en recibir información de la pieza de catálogo:\n\n*${product.name}*\nMaterial: ${matName}\nCategoría: ${product.category}\nPrecio: ${product.price}\n\nEnlace: ${window.location.href}`;
     const encodedText = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedText}`, '_blank');
   };
@@ -366,23 +511,36 @@ export default function SanzeCatalog() {
         .header {
           position: sticky;
           top: 0;
-          background-color: rgba(17, 18, 13, 0.92);
+          background-color: rgba(6, 7, 5, 0.92);
           backdrop-filter: blur(25px);
           -webkit-backdrop-filter: blur(25px);
           border-bottom: 1px solid var(--border);
-          padding: 1rem 3rem;
-          display: flex;
-          justify-content: space-between;
+          padding: 1.2rem 4rem;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
           z-index: 90;
           transition: var(--transition);
         }
 
+        .header-nav.left-nav {
+          display: flex;
+          gap: 2.2rem;
+          justify-content: flex-start;
+        }
+
+        .header-nav.right-nav {
+          display: flex;
+          gap: 2.2rem;
+          justify-content: flex-end;
+        }
+
         .logo {
           font-family: 'Outfit', sans-serif;
-          font-size: 1.6rem;
+          font-size: 1.8rem;
           font-weight: 800;
-          letter-spacing: -0.02em;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
           cursor: pointer;
           color: var(--text-main);
           background: linear-gradient(90deg, #FFFBF4 0%, #D8CFBC 35%, #FFFBF4 60%, #e6dfd0 100%);
@@ -391,16 +549,11 @@ export default function SanzeCatalog() {
           -webkit-text-fill-color: transparent;
           animation: shimmerBg 4s linear infinite;
           transition: var(--transition);
+          justify-self: center;
         }
 
         .logo:hover {
           opacity: 0.85;
-        }
-
-        .header-nav {
-          display: flex;
-          gap: 2rem;
-          align-items: center;
         }
 
         .nav-link {
@@ -548,9 +701,9 @@ export default function SanzeCatalog() {
         /* Materials Grid */
         .materials-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
           gap: 2rem;
-          max-width: 900px;
+          max-width: 1100px;
           margin: 1rem auto 4rem auto;
           padding: 0 2rem;
           opacity: 0;
@@ -574,7 +727,11 @@ export default function SanzeCatalog() {
         }
 
         .material-block:nth-child(2) {
-          animation-delay: -3s;
+          animation-delay: -2s;
+        }
+
+        .material-block:nth-child(3) {
+          animation-delay: -4s;
         }
 
         .material-block::before {
@@ -756,9 +913,15 @@ export default function SanzeCatalog() {
         .product-card {
           cursor: pointer;
           animation: cardReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
+          position: relative;
+          overflow: hidden;
+          border-radius: var(--rounded-md);
+          border: 1px solid var(--border);
+          transition: var(--transition);
+        }
+
+        .product-card:hover {
+          border-color: var(--border-hover);
         }
 
         .product-card:nth-child(1)  { animation-delay: 0.05s; }
@@ -771,21 +934,17 @@ export default function SanzeCatalog() {
 
         .product-image {
           width: 100%;
-          aspect-ratio: 1;
+          aspect-ratio: 3/4;
           background-color: var(--bg-secondary);
-          border: 1px solid var(--border);
           display: flex;
           align-items: center;
           justify-content: center;
           overflow: hidden;
           transition: var(--transition);
           position: relative;
-          border-radius: var(--rounded-md);
         }
 
         .product-card:hover .product-image {
-          border-color: var(--border-hover);
-          transform: translateY(-4px);
           animation: glowPulse 2s ease-in-out infinite;
         }
 
@@ -809,23 +968,33 @@ export default function SanzeCatalog() {
         }
 
         .product-info-wrap {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(to top, rgba(6, 7, 5, 0.95) 0%, rgba(6, 7, 5, 0.70) 70%, transparent 100%);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+          padding: 1.5rem 1rem 1rem 1rem;
+          transform: translateY(100%);
+          transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
           display: flex;
           flex-direction: column;
           gap: 0.3rem;
-          padding: 0 0.2rem;
+          z-index: 5;
+        }
+
+        .product-card:hover .product-info-wrap {
+          transform: translateY(0);
         }
 
         .product-name {
           font-family: 'Plus Jakarta Sans', sans-serif;
-          font-size: 1.1rem;
+          font-size: 1.05rem;
           font-weight: 600;
           color: var(--text-main);
           line-height: 1.3;
           transition: var(--transition);
-        }
-
-        .product-card:hover .product-name {
-          color: var(--accent);
         }
 
         .product-price {
@@ -833,6 +1002,26 @@ export default function SanzeCatalog() {
           font-size: 0.95rem;
           color: var(--accent);
           font-weight: 600;
+        }
+
+        .product-material-badge {
+          position: absolute;
+          top: 0.8rem;
+          left: 0.8rem;
+          background-color: rgba(6, 7, 5, 0.75);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+          border: 1px solid var(--border);
+          color: var(--text-main);
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 0.65rem;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          padding: 0.3rem 0.6rem;
+          border-radius: var(--rounded-sm);
+          z-index: 4;
+          pointer-events: none;
         }
 
         /* Luxury Detail Overlay */
@@ -1070,6 +1259,29 @@ export default function SanzeCatalog() {
           border-color: #ef4444;
           transform: translateY(-2px);
           box-shadow: 0 8px 16px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-edit-prod {
+          background-color: rgba(216, 207, 188, 0.08);
+          border: 1px solid rgba(216, 207, 188, 0.20);
+          color: var(--accent);
+          padding: 1rem;
+          width: 48px;
+          height: 48px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--rounded-md);
+          transition: var(--transition);
+        }
+
+        .btn-edit-prod:hover {
+          background-color: var(--accent);
+          color: #11120D;
+          border-color: var(--accent);
+          transform: translateY(-2px);
+          box-shadow: 0 8px 16px rgba(216, 207, 188, 0.18);
         }
 
         /* Float Action Button Plus */
@@ -1562,16 +1774,38 @@ export default function SanzeCatalog() {
             >
               <RefreshCw size={14} /> Restablecer catálogo
             </button>
+            <button 
+              onClick={() => {
+                setIsAdmin(false);
+                sessionStorage.removeItem('sanze_admin_active');
+              }}
+              style={{
+                background: '#121215',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: '700',
+                transition: 'var(--transition)'
+              }}
+            >
+              Salir
+            </button>
           </div>
         </div>
       )}
 
       {/* Main Luxury Header */}
       <header className="header">
-        <div className="logo" onClick={goHome}>Joyería Sanze</div>
-        <nav className="header-nav">
+        <nav className="header-nav left-nav">
           <div className="nav-link" onClick={() => goToMaterial('oro')}>Oro</div>
           <div className="nav-link" onClick={() => goToMaterial('plata')}>Plata</div>
+        </nav>
+        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }}>Joyería Sanze</div>
+        <nav className="header-nav right-nav">
+          <div className="nav-link" onClick={() => goToMaterial('oro_laminado')}>Oro Laminado</div>
           <div className="nav-link" onClick={goHome}>Colección</div>
         </nav>
       </header>
@@ -1616,6 +1850,7 @@ export default function SanzeCatalog() {
                     <option value="">Seleccione</option>
                     <option value="oro">Oro</option>
                     <option value="plata">Plata</option>
+                    <option value="oro_laminado">Oro Laminado</option>
                   </select>
                 </div>
                 <div>
@@ -1692,6 +1927,101 @@ export default function SanzeCatalog() {
         </div>
       )}
 
+      {/* Edit Product Modal */}
+      {showEditForm && (
+        <div className="modal-overlay" onClick={() => setShowEditForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Editar Pieza</h2>
+
+            <div className="form-group">
+              <label className="form-label">Nombre de la Pieza</label>
+              <input type="text" className="form-input" value={editFormData.name}
+                onChange={e => setEditFormData({...editFormData, name: e.target.value})}
+                placeholder="Ej: Aretes Colgantes de Rubí" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Precio</label>
+              <input type="text" className="form-input" value={editFormData.price}
+                onChange={e => setEditFormData({...editFormData, price: e.target.value})}
+                placeholder="Ej: $3,500" />
+            </div>
+
+            <div className="form-group">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label className="form-label">Material</label>
+                  <select className="form-select" value={editFormData.material}
+                    onChange={e => setEditFormData({...editFormData, material: e.target.value})}>
+                    <option value="">Seleccione</option>
+                    <option value="oro">Oro</option>
+                    <option value="plata">Plata</option>
+                    <option value="oro_laminado">Oro Laminado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Categoría</label>
+                  <select className="form-select" value={editFormData.category}
+                    onChange={e => setEditFormData({...editFormData, category: e.target.value})}
+                    disabled={!editFormData.material}>
+                    <option value="">Seleccione</option>
+                    {editFormData.material && categories[editFormData.material].map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Descripción</label>
+              <textarea className="form-textarea" value={editFormData.description}
+                onChange={e => setEditFormData({...editFormData, description: e.target.value})}
+                placeholder="Describe la pieza..." />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Imágenes actuales</label>
+              {editFormData.images.length > 0 && (
+                <div className="image-preview">
+                  {editFormData.images.map((img) => (
+                    <div key={img.id} className="preview-item">
+                      <img src={img.src} alt="preview" />
+                      <div className="remove-image" onClick={() => removeEditImage(img.id)}>
+                        <X size={18} color="#FFFBF4" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <label className="form-label" style={{ marginTop: '1rem' }}>Añadir nueva imagen (URL)</label>
+              <div className="url-input-wrap">
+                <input type="text" className="form-input" value={editUrlInput}
+                  onChange={e => setEditUrlInput(e.target.value)}
+                  placeholder="Pegue la URL de la imagen aquí..." />
+                <button type="button" className="btn-add-url" onClick={handleAddEditImageUrl}>Añadir</button>
+              </div>
+
+              <div className="upload-divider">O subir archivo local</div>
+
+              <div className="upload-zone">
+                <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', flexDirection: 'column', color: 'rgba(255, 251, 244, 0.5)' }}>
+                  <Upload size={24} color="#D8CFBC" />
+                  <span style={{ fontSize: '0.8rem', letterSpacing: '0.1em' }}>EXAMINAR ARCHIVOS</span>
+                  <input type="file" multiple accept="image/*" onChange={handleEditImageUpload} />
+                </label>
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button className="btn-modal btn-modal-save" onClick={updateProduct}>Guardar Cambios</button>
+              <button className="btn-modal btn-modal-cancel" onClick={() => setShowEditForm(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Luxury Product Detail Modal */}
       {selectedProduct && (
         <div className="detail-overlay">
@@ -1708,12 +2038,16 @@ export default function SanzeCatalog() {
                 {selectedProduct.images.length > 0 ? (
                   <>
                     <div className="detail-main-image">
-                      <img src={selectedProduct.images[0].src} alt={selectedProduct.name} />
+                      <img src={selectedProduct.images[activeImageIndex]?.src || selectedProduct.images[0].src} alt={selectedProduct.name} />
                     </div>
                     {selectedProduct.images.length > 1 && (
                       <div className="detail-thumbnails">
                         {selectedProduct.images.map((img, idx) => (
-                          <div key={idx} className="thumbnail active">
+                          <div 
+                            key={idx} 
+                            className={`thumbnail ${idx === activeImageIndex ? 'active' : ''}`}
+                            onClick={() => setActiveImageIndex(idx)}
+                          >
                             <img src={img.src} alt={`thumb-${idx}`} />
                           </div>
                         ))}
@@ -1739,7 +2073,7 @@ export default function SanzeCatalog() {
                 <div className="detail-specs">
                   <div className="spec-row">
                     <span className="spec-label">Material</span>
-                    <span className="spec-value">{selectedProduct.material === 'oro' ? 'Oro Sólido' : 'Plata de Ley .925'}</span>
+                    <span className="spec-value">{materialSubtext[selectedProduct.material] || selectedProduct.material}</span>
                   </div>
                   <div className="spec-row">
                     <span className="spec-label">Categoría</span>
@@ -1752,13 +2086,22 @@ export default function SanzeCatalog() {
                     <Send size={16} /> Preguntar por WhatsApp
                   </button>
                   {isAdmin && (
-                    <button 
-                      className="btn-delete-prod" 
-                      onClick={() => deleteProduct(selectedProduct.id)} 
-                      title="Eliminar producto"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        className="btn-edit-prod"
+                        onClick={() => openEditForm(selectedProduct)}
+                        title="Editar producto"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        className="btn-delete-prod"
+                        onClick={() => deleteProduct(selectedProduct.id)}
+                        title="Eliminar producto"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1773,7 +2116,7 @@ export default function SanzeCatalog() {
           <>
             <section className="hero">
               <h1 className="hero-title">Sanze</h1>
-              <p className="hero-subtitle">Joyería Selecta en Oro & Plata</p>
+              <p className="hero-subtitle">Oro, Plata & Oro Laminado</p>
               
               {/* Elegant search bar on home */}
               <div className="search-bar-container">
@@ -1800,6 +2143,7 @@ export default function SanzeCatalog() {
                         onClick={() => viewProductDetail(product)}
                       >
                         <div className="product-image">
+                          <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
                           {product.images && product.images.length > 0 ? (
                             <img src={product.images[0].src} alt={product.name} />
                           ) : (
@@ -1824,11 +2168,12 @@ export default function SanzeCatalog() {
                 <div className="materials-grid">
                   <div className="material-block" onClick={() => goToMaterial('oro')}>
                     <div className="material-text">Oro</div>
-                    <div className="material-tagline">Piezas en 14k y 18k</div>
                   </div>
                   <div className="material-block" onClick={() => goToMaterial('plata')}>
                     <div className="material-text">Plata</div>
-                    <div className="material-tagline">Plata Fina Ley .925</div>
+                  </div>
+                  <div className="material-block" onClick={() => goToMaterial('oro_laminado')}>
+                    <div className="material-text">Oro Laminado</div>
                   </div>
                 </div>
 
@@ -1845,7 +2190,7 @@ export default function SanzeCatalog() {
         {selectedMaterial && !selectedCategory && (
           <div className="section">
             <div className="back-link" onClick={() => goToMaterial(null)}>← Volver al inicio</div>
-            <h1 className="section-title">Colección de {selectedMaterial === 'oro' ? 'Oro' : 'Plata'}</h1>
+            <h1 className="section-title">Colección de {materialNames[selectedMaterial]}</h1>
 
             <div className="categories-grid">
               {categories[selectedMaterial].map((category) => (
@@ -1863,7 +2208,7 @@ export default function SanzeCatalog() {
 
         {selectedCategory && (
           <div className="section">
-            <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {selectedMaterial === 'oro' ? 'Oro' : 'Plata'}</div>
+            <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {materialNames[selectedMaterial]}</div>
             <h1 className="section-title">{selectedCategory}</h1>
 
             {products[selectedMaterial][selectedCategory] && products[selectedMaterial][selectedCategory].length > 0 ? (
@@ -1875,6 +2220,7 @@ export default function SanzeCatalog() {
                     onClick={() => viewProductDetail(product)}
                   >
                     <div className="product-image">
+                      <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
                       {product.images && product.images.length > 0 ? (
                         <img src={product.images[0].src} alt={product.name} />
                       ) : (
