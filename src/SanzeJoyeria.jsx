@@ -2513,45 +2513,50 @@ export default function SanzeCatalog() {
           </div>
         )}
 
-        {selectedCategory && (
-          <div className="section">
-            <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {materialNames[selectedMaterial]}</div>
-            <h1 className="section-title">{selectedCategory}</h1>
+        {selectedCategory && (() => {
+          const materialData = products?.[selectedMaterial];
+          const rawItems = materialData?.[selectedCategory];
+          const categoryItems = Array.isArray(rawItems) ? rawItems : (rawItems && typeof rawItems === 'object' ? Object.values(rawItems) : []);
+          return (
+            <div className="section">
+              <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {materialNames[selectedMaterial]}</div>
+              <h1 className="section-title">{selectedCategory}</h1>
 
-            {Array.isArray(products?.[selectedMaterial]?.[selectedCategory]) && products[selectedMaterial][selectedCategory].length > 0 ? (
-              <div className="products-grid">
-                {products[selectedMaterial][selectedCategory].map((product) => (
-                  <div
-                    key={product.id}
-                    className="product-card"
-                    onClick={() => viewProductDetail(product)}
-                  >
-                    <div className="product-image">
-                      <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
-                      {product.images && product.images.length > 0 ? (
-                        product.images[0].isVideo ? (
-                          <video src={product.images[0].src} muted loop playsInline style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover' }} />
+              {categoryItems.length > 0 ? (
+                <div className="products-grid">
+                  {categoryItems.map((product) => (
+                    <div
+                      key={product.id}
+                      className="product-card"
+                      onClick={() => viewProductDetail(product)}
+                    >
+                      <div className="product-image">
+                        <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
+                        {product.images && (Array.isArray(product.images) ? product.images : Object.values(product.images)).length > 0 ? (
+                          (Array.isArray(product.images) ? product.images : Object.values(product.images))[0].isVideo ? (
+                            <video src={(Array.isArray(product.images) ? product.images : Object.values(product.images))[0].src} muted loop playsInline style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <img src={(Array.isArray(product.images) ? product.images : Object.values(product.images))[0].src} alt={product.name} />
+                          )
                         ) : (
-                          <img src={product.images[0].src} alt={product.name} />
-                        )
-                      ) : (
-                        <span className="product-placeholder">Sin Imagen</span>
-                      )}
+                          <span className="product-placeholder">Sin Imagen</span>
+                        )}
+                      </div>
+                      <div className="product-info-wrap">
+                        <h3 className="product-name">{product.name}</h3>
+                        <p className="product-price">{product.price}</p>
+                      </div>
                     </div>
-                    <div className="product-info-wrap">
-                      <h3 className="product-name">{product.name}</h3>
-                      <p className="product-price">{product.price}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <p>No hay piezas registradas en esta categoría aún.</p>
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <p>No hay piezas registradas en esta categoría aún.</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </main>
 
       <footer className="footer" style={{ position: 'relative', zIndex: 1 }}>
