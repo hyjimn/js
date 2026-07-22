@@ -155,6 +155,7 @@ export default function SanzeCatalog() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [enlargedMedia, setEnlargedMedia] = useState(null);
   const [isAdmin, setIsAdmin] = useState(() => {
     return sessionStorage.getItem('sanze_admin_active') === 'true';
   });
@@ -219,7 +220,7 @@ export default function SanzeCatalog() {
 
   const handleLogoClick = () => {
     logoClicksRef.current += 1;
-    if (logoClicksRef.current === 5) {
+    if (logoClicksRef.current >= 3) {
       promptAdminPassword();
       logoClicksRef.current = 0;
       return;
@@ -227,7 +228,7 @@ export default function SanzeCatalog() {
     clearTimeout(logoClickTimeoutRef.current);
     logoClickTimeoutRef.current = setTimeout(() => {
       logoClicksRef.current = 0;
-    }, 3000);
+    }, 5000);
   };
 
 
@@ -301,22 +302,25 @@ export default function SanzeCatalog() {
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
     files.forEach(file => {
+      const isVideo = file.type.startsWith('video/');
       const reader = new FileReader();
       reader.onload = (event) => {
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, { src: event.target.result, id: Date.now() + Math.random() }]
+          images: [...prev.images, { src: event.target.result, isVideo, id: Date.now() + Math.random() }]
         }));
       };
       reader.readAsDataURL(file);
     });
+    e.target.value = null;
   };
 
   const handleAddImageUrl = () => {
     if (urlInput.trim()) {
+      const isVideo = urlInput.trim().match(/\.(mp4|webm|ogg|mov)$/i) != null;
       setFormData(prev => ({
         ...prev,
-        images: [...prev.images, { src: urlInput.trim(), id: Date.now() + Math.random() }]
+        images: [...prev.images, { src: urlInput.trim(), isVideo, id: Date.now() + Math.random() }]
       }));
       setUrlInput('');
     }
@@ -359,6 +363,8 @@ export default function SanzeCatalog() {
         images: []
       });
       setShowAddForm(false);
+    } else {
+      alert("Por favor, llena todos los campos y añade al menos una imagen o video.");
     }
   };
 
@@ -418,28 +424,33 @@ export default function SanzeCatalog() {
           console.error("Error saving updated product to Firebase:", err);
         });
       }
+    } else {
+      alert("Por favor, llena todos los campos y añade al menos una imagen o video.");
     }
   };
 
   const handleEditImageUpload = (e) => {
     const files = Array.from(e.target.files);
     files.forEach(file => {
+      const isVideo = file.type.startsWith('video/');
       const reader = new FileReader();
       reader.onload = (event) => {
         setEditFormData(prev => ({
           ...prev,
-          images: [...prev.images, { src: event.target.result, id: Date.now() + Math.random() }]
+          images: [...prev.images, { src: event.target.result, isVideo, id: Date.now() + Math.random() }]
         }));
       };
       reader.readAsDataURL(file);
     });
+    e.target.value = null;
   };
 
   const handleAddEditImageUrl = () => {
     if (editUrlInput.trim()) {
+      const isVideo = editUrlInput.trim().match(/\.(mp4|webm|ogg|mov)$/i) != null;
       setEditFormData(prev => ({
         ...prev,
-        images: [...prev.images, { src: editUrlInput.trim(), id: Date.now() + Math.random() }]
+        images: [...prev.images, { src: editUrlInput.trim(), isVideo, id: Date.now() + Math.random() }]
       }));
       setEditUrlInput('');
     }
@@ -1086,14 +1097,14 @@ export default function SanzeCatalog() {
           animation: glowPulse 2s ease-in-out infinite;
         }
 
-        .product-image img {
+        .product-image img, .product-image video {
           width: 100%;
           height: 100%;
           object-fit: cover;
           transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .product-card:hover .product-image img {
+        .product-card:hover .product-image img, .product-card:hover .product-image video {
           transform: scale(1.06);
         }
 
@@ -1242,10 +1253,48 @@ export default function SanzeCatalog() {
           box-shadow: 0 15px 30px rgba(0,0,0,0.5);
         }
 
-        .detail-main-image img {
+        .detail-main-image img, .detail-main-image video {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .enlarged-overlay {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(0, 0, 0, 0.95);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: zoom-out;
+          animation: fadeIn 0.3s ease-out;
+        }
+        .enlarged-media {
+          max-width: 95vw;
+          max-height: 95vh;
+          object-fit: contain;
+          border-radius: 8px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+        .enlarged-close {
+          position: absolute;
+          top: 2rem;
+          right: 2rem;
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: var(--transition);
+        }
+        .enlarged-close:hover {
+          background: rgba(255, 255, 255, 0.2);
         }
 
         .detail-thumbnails {
@@ -1269,7 +1318,7 @@ export default function SanzeCatalog() {
           box-shadow: 0 0 8px var(--accent-glow);
         }
 
-        .thumbnail img {
+        .thumbnail img, .thumbnail video {
           width: 100%;
           height: 100%;
           object-fit: cover;
@@ -1618,7 +1667,7 @@ export default function SanzeCatalog() {
           border: 1px solid var(--border);
         }
 
-        .preview-item img {
+        .preview-item img, .preview-item video {
           width: 100%;
           height: 100%;
           object-fit: cover;
@@ -1941,10 +1990,13 @@ export default function SanzeCatalog() {
           <div className="nav-link" onClick={() => goToMaterial('oro')}>Oro</div>
           <div className="nav-link" onClick={() => goToMaterial('plata')}>Plata</div>
         </nav>
-        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "center" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain" }} /></div>
+        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "center", userSelect: "none", WebkitUserSelect: "none" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain", pointerEvents: "none" }} /></div>
         <nav className="header-nav right-nav">
           <div className="nav-link" onClick={() => goToMaterial('oro_laminado')}>Oro Laminado</div>
           <div className="nav-link" onClick={goHome}>Colección</div>
+          {isAdmin && (
+            <div className="nav-link" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); }} style={{ color: '#ef4444' }}>Salir Admin</div>
+          )}
         </nav>
       </header>
 
@@ -2039,7 +2091,7 @@ export default function SanzeCatalog() {
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', flexDirection: 'column', color: 'rgba(245, 241, 237, 0.5)' }}>
                   <Upload size={24} color="#D8CFBC" />
                   <span style={{ fontSize: '0.8rem', letterSpacing: '0.1em' }}>EXAMINAR ARCHIVOS</span>
-                  <input type="file" multiple accept="image/*" onChange={handleImageUpload} />
+                  <input type="file" multiple accept="image/*,video/*" onChange={handleImageUpload} />
                 </label>
               </div>
 
@@ -2047,7 +2099,7 @@ export default function SanzeCatalog() {
                 <div className="image-preview">
                   {formData.images.map((img) => (
                     <div key={img.id} className="preview-item">
-                      <img src={img.src} alt="preview" />
+                      {img.isVideo ? <video src={img.src} muted /> : <img src={img.src} alt="preview" />}
                       <div className="remove-image" onClick={() => removeImage(img.id)}>
                         <X size={18} color="#f5f1ed" />
                       </div>
@@ -2124,7 +2176,7 @@ export default function SanzeCatalog() {
                 <div className="image-preview">
                   {editFormData.images.map((img) => (
                     <div key={img.id} className="preview-item">
-                      <img src={img.src} alt="preview" />
+                      {img.isVideo ? <video src={img.src} muted /> : <img src={img.src} alt="preview" />}
                       <div className="remove-image" onClick={() => removeEditImage(img.id)}>
                         <X size={18} color="#FFFBF4" />
                       </div>
@@ -2147,7 +2199,7 @@ export default function SanzeCatalog() {
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', flexDirection: 'column', color: 'rgba(255, 251, 244, 0.5)' }}>
                   <Upload size={24} color="#D8CFBC" />
                   <span style={{ fontSize: '0.8rem', letterSpacing: '0.1em' }}>EXAMINAR ARCHIVOS</span>
-                  <input type="file" multiple accept="image/*" onChange={handleEditImageUpload} />
+                  <input type="file" multiple accept="image/*,video/*" onChange={handleEditImageUpload} />
                 </label>
               </div>
             </div>
@@ -2175,8 +2227,12 @@ export default function SanzeCatalog() {
               <div className="detail-images">
                 {selectedProduct.images.length > 0 ? (
                   <>
-                    <div className="detail-main-image">
-                      <img src={selectedProduct.images[activeImageIndex]?.src || selectedProduct.images[0].src} alt={selectedProduct.name} />
+                    <div className="detail-main-image" onClick={() => setEnlargedMedia(selectedProduct.images[activeImageIndex] || selectedProduct.images[0])} style={{ cursor: 'zoom-in' }}>
+                      {(selectedProduct.images[activeImageIndex]?.isVideo || selectedProduct.images[0].isVideo) ? (
+                        <video src={selectedProduct.images[activeImageIndex]?.src || selectedProduct.images[0].src} controls autoPlay loop muted style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+                      ) : (
+                        <img src={selectedProduct.images[activeImageIndex]?.src || selectedProduct.images[0].src} alt={selectedProduct.name} />
+                      )}
                     </div>
                     {selectedProduct.images.length > 1 && (
                       <div className="detail-thumbnails">
@@ -2186,7 +2242,7 @@ export default function SanzeCatalog() {
                             className={`thumbnail ${idx === activeImageIndex ? 'active' : ''}`}
                             onClick={() => setActiveImageIndex(idx)}
                           >
-                            <img src={img.src} alt={`thumb-${idx}`} />
+                            {img.isVideo ? <video src={img.src} muted /> : <img src={img.src} alt={`thumb-${idx}`} />}
                           </div>
                         ))}
                       </div>
@@ -2248,6 +2304,17 @@ export default function SanzeCatalog() {
         </div>
       )}
 
+      {enlargedMedia && (
+        <div className="enlarged-overlay" onClick={() => setEnlargedMedia(null)}>
+          <button className="enlarged-close" onClick={() => setEnlargedMedia(null)}><X size={24} /></button>
+          {enlargedMedia.isVideo ? (
+            <video src={enlargedMedia.src} controls autoPlay loop className="enlarged-media" onClick={e => e.stopPropagation()} />
+          ) : (
+            <img src={enlargedMedia.src} alt="Enlarged" className="enlarged-media" onClick={e => e.stopPropagation()} />
+          )}
+        </div>
+      )}
+
       {/* Main Catalog Screens */}
       <main style={{ position: 'relative', zIndex: 1 }}>
         {currentPage === 'home' && !selectedMaterial && (
@@ -2283,7 +2350,11 @@ export default function SanzeCatalog() {
                         <div className="product-image">
                           <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
                           {product.images && product.images.length > 0 ? (
-                            <img src={product.images[0].src} alt={product.name} />
+                            product.images[0].isVideo ? (
+                              <video src={product.images[0].src} muted loop playsInline style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <img src={product.images[0].src} alt={product.name} />
+                            )
                           ) : (
                             <span className="product-placeholder">Sin imagen</span>
                           )}
@@ -2360,7 +2431,11 @@ export default function SanzeCatalog() {
                     <div className="product-image">
                       <span className="product-material-badge">{materialNames[product.material] || product.material}</span>
                       {product.images && product.images.length > 0 ? (
-                        <img src={product.images[0].src} alt={product.name} />
+                        product.images[0].isVideo ? (
+                          <video src={product.images[0].src} muted loop playsInline style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <img src={product.images[0].src} alt={product.name} />
+                        )
                       ) : (
                         <span className="product-placeholder">Sin Imagen</span>
                       )}
