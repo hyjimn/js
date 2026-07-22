@@ -244,7 +244,18 @@ export default function SanzeCatalog() {
     const saved = localStorage.getItem('sanze_catalog_products_v2');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const data = JSON.parse(saved);
+        Object.keys(data).forEach(mat => {
+          if (data[mat] && data[mat]['Arista']) {
+            if (!data[mat]['Arete']) data[mat]['Arete'] = [];
+            data[mat]['Arista'].forEach(p => {
+              p.category = 'Arete';
+              data[mat]['Arete'].push(p);
+            });
+            delete data[mat]['Arista'];
+          }
+        });
+        return data;
       } catch (e) {
         console.error("Error parsing saved products", e);
       }
@@ -263,8 +274,23 @@ export default function SanzeCatalog() {
     const productsRef = ref(db, 'products');
     
     const unsubscribe = onValue(productsRef, (snapshot) => {
-      const data = snapshot.val();
+      let data = snapshot.val();
       if (data) {
+        let needsUpdate = false;
+        Object.keys(data).forEach(mat => {
+          if (data[mat] && data[mat]['Arista']) {
+            if (!data[mat]['Arete']) data[mat]['Arete'] = [];
+            data[mat]['Arista'].forEach(p => {
+              p.category = 'Arete';
+              data[mat]['Arete'].push(p);
+            });
+            delete data[mat]['Arista'];
+            needsUpdate = true;
+          }
+        });
+        if (needsUpdate) {
+          set(ref(db, 'products'), data);
+        }
         setProducts(data);
       } else {
         // If database is empty, initialize it with local products
@@ -1849,6 +1875,44 @@ export default function SanzeCatalog() {
           50%       { box-shadow: 0 10px 20px rgba(0,0,0,0.35), 0 0 20px rgba(216, 207, 188, 0.22); }
         }
 
+        .admin-bar {
+          background-color: var(--accent);
+          color: #121215;
+          padding: 0.6rem 2rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 0.85rem;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-weight: 600;
+          z-index: 95;
+          position: sticky;
+          top: 0;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        .admin-bar-title {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .admin-bar-actions {
+          display: flex;
+          gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+          .admin-bar {
+            flex-direction: column;
+            padding: 0.8rem 1rem;
+            text-align: center;
+            gap: 0.8rem;
+          }
+          .admin-bar-actions {
+            flex-wrap: wrap;
+            justify-content: center;
+          }
+        }
+
         /* Responsive */
         @media (max-width: 992px) {
           .detail-grid {
@@ -1904,25 +1968,11 @@ export default function SanzeCatalog() {
 
       {/* Admin Bar */}
       {isAdmin && (
-        <div style={{
-          backgroundColor: 'var(--accent)',
-          color: '#121215',
-          padding: '0.6rem 2rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '0.85rem',
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontWeight: '600',
-          zIndex: 95,
-          position: 'sticky',
-          top: 0,
-          borderBottom: '1px solid rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="admin-bar">
+          <div className="admin-bar-title">
             <span>🛠️</span> MODO ADMINISTRADOR ACTIVO
           </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div className="admin-bar-actions">
             <button 
               onClick={exportCatalogJSON}
               style={{
@@ -2420,7 +2470,7 @@ export default function SanzeCatalog() {
             <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {materialNames[selectedMaterial]}</div>
             <h1 className="section-title">{selectedCategory}</h1>
 
-            {products[selectedMaterial][selectedCategory] && products[selectedMaterial][selectedCategory].length > 0 ? (
+            {products[selectedMaterial]?.[selectedCategory] && products[selectedMaterial][selectedCategory].length > 0 ? (
               <div className="products-grid">
                 {products[selectedMaterial][selectedCategory].map((product) => (
                   <div
