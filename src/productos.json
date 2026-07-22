@@ -1,5 +1,6 @@
 {
   "oro": {
+    "Anillo": [],
     "Arete": [],
     "Arracada": [],
     "Broquel": [],
@@ -10,6 +11,18 @@
     "Pulso": []
   },
   "plata": {
+    "Anillo": [],
+    "Arete": [],
+    "Arracada": [],
+    "Broquel": [],
+    "Cadena": [],
+    "Dije": [],
+    "Esclava": [],
+    "Huggie": [],
+    "Pulso": []
+  },
+  "oro_laminado": {
+    "Anillo": [],
     "Arete": [],
     "Arracada": [],
     "Broquel": [],

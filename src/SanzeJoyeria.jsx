@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
 import initialProductsData from './productos.json';
+import { db, isConfigured } from './firebase';
+import { ref, onValue, set } from 'firebase/database';
 
 function SparkleCanvas() {
   const canvasRef = useRef(null);
@@ -106,6 +108,7 @@ const materialSubtext = {
 
 const DEFAULT_PRODUCTS = {
   oro: {
+    'Anillo': [],
     'Arete': [],
     'Arracada': [],
     'Broquel': [],
@@ -116,6 +119,7 @@ const DEFAULT_PRODUCTS = {
     'Pulso': []
   },
   plata: {
+    'Anillo': [],
     'Arete': [],
     'Arracada': [],
     'Broquel': [],
@@ -126,6 +130,7 @@ const DEFAULT_PRODUCTS = {
     'Pulso': []
   },
   oro_laminado: {
+    'Anillo': [],
     'Arete': [],
     'Arracada': [],
     'Broquel': [],
@@ -139,9 +144,9 @@ const DEFAULT_PRODUCTS = {
 
 export default function SanzeCatalog() {
   const categories = {
-    oro: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
-    plata: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
-    oro_laminado: ['Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso']
+    oro: ['Anillo', 'Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
+    plata: ['Anillo', 'Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
+    oro_laminado: ['Anillo', 'Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso']
   };
 
   const [currentPage, setCurrentPage] = useState('home');
@@ -153,6 +158,42 @@ export default function SanzeCatalog() {
   const [isAdmin, setIsAdmin] = useState(() => {
     return sessionStorage.getItem('sanze_admin_active') === 'true';
   });
+
+  useEffect(() => {
+    window.history.replaceState({ view: 'home' }, '', '');
+    const handlePopState = (event) => {
+      const state = event.state;
+      if (state) {
+        if (state.view === 'home') {
+          setCurrentPage('home');
+          setSelectedMaterial(null);
+          setSelectedCategory(null);
+          setSelectedProduct(null);
+          setSearchQuery('');
+        } else if (state.view === 'material') {
+          setSelectedMaterial(state.material);
+          setSelectedCategory(null);
+          setSelectedProduct(null);
+        } else if (state.view === 'category') {
+          setSelectedMaterial(state.material);
+          setSelectedCategory(state.category);
+          setSelectedProduct(null);
+        } else if (state.view === 'product') {
+          setSelectedMaterial(state.material);
+          setSelectedCategory(state.category);
+          setSelectedProduct(state.product);
+        }
+      } else {
+        setCurrentPage('home');
+        setSelectedMaterial(null);
+        setSelectedCategory(null);
+        setSelectedProduct(null);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const logoClicksRef = useRef(0);
   const logoClickTimeoutRef = useRef(null);
@@ -195,6 +236,8 @@ export default function SanzeCatalog() {
     setActiveImageIndex(0);
   }, [selectedProduct]);
   
+  const [loading, setLoading] = useState(isConfigured);
+
   // Load products from localStorage or use defaults
   const [products, setProducts] = useState(() => {
     const saved = localStorage.getItem('sanze_catalog_products_v2');
@@ -207,6 +250,33 @@ export default function SanzeCatalog() {
     }
     return initialProductsData || DEFAULT_PRODUCTS;
   });
+
+  // Sync products from Firebase if configured
+  useEffect(() => {
+    if (!isConfigured || !db) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const productsRef = ref(db, 'products');
+    
+    const unsubscribe = onValue(productsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setProducts(data);
+      } else {
+        // If database is empty, initialize it with local products
+        setProducts(initialProductsData || DEFAULT_PRODUCTS);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching products from Firebase:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Save to localStorage when products change
   useEffect(() => {
@@ -264,13 +334,21 @@ export default function SanzeCatalog() {
         images: formData.images
       };
 
-      setProducts(prev => ({
-        ...prev,
+      const updatedProducts = {
+        ...products,
         [formData.material]: {
-          ...prev[formData.material],
-          [formData.category]: [...prev[formData.material][formData.category], newProduct]
+          ...products[formData.material],
+          [formData.category]: [...(products[formData.material]?.[formData.category] || []), newProduct]
         }
-      }));
+      };
+
+      setProducts(updatedProducts);
+
+      if (isConfigured && db) {
+        set(ref(db, 'products'), updatedProducts).catch(err => {
+          console.error("Error saving new product to Firebase:", err);
+        });
+      }
 
       setFormData({
         name: '',
@@ -315,18 +393,31 @@ export default function SanzeCatalog() {
         category: editFormData.category,
         images: editFormData.images
       };
-      setProducts(prev => {
-        const copy = JSON.parse(JSON.stringify(prev));
-        Object.keys(copy).forEach(mat => {
+      const copy = JSON.parse(JSON.stringify(products));
+      Object.keys(copy).forEach(mat => {
+        if (copy[mat]) {
           Object.keys(copy[mat]).forEach(cat => {
             copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
           });
-        });
-        copy[editFormData.material][editFormData.category].push(updated);
-        return copy;
+        }
       });
+      if (!copy[editFormData.material]) {
+        copy[editFormData.material] = {};
+      }
+      if (!copy[editFormData.material][editFormData.category]) {
+        copy[editFormData.material][editFormData.category] = [];
+      }
+      copy[editFormData.material][editFormData.category].push(updated);
+      
+      setProducts(copy);
       setSelectedProduct(updated);
       setShowEditForm(false);
+
+      if (isConfigured && db) {
+        set(ref(db, 'products'), copy).catch(err => {
+          console.error("Error saving updated product to Firebase:", err);
+        });
+      }
     }
   };
 
@@ -362,19 +453,27 @@ export default function SanzeCatalog() {
   };
 
   const deleteProduct = (productId) => {
-    setProducts(prev => {
-      const newProducts = { ...prev };
-      Object.keys(newProducts).forEach(material => {
+    const newProducts = { ...products };
+    Object.keys(newProducts).forEach(material => {
+      if (newProducts[material]) {
+        newProducts[material] = { ...newProducts[material] };
         Object.keys(newProducts[material]).forEach(category => {
           newProducts[material][category] = newProducts[material][category].filter(p => p.id !== productId);
         });
-      });
-      return newProducts;
+      }
     });
+    setProducts(newProducts);
     setSelectedProduct(null);
+
+    if (isConfigured && db) {
+      set(ref(db, 'products'), newProducts).catch(err => {
+        console.error("Error deleting product from Firebase:", err);
+      });
+    }
   };
 
   const goHome = () => {
+    window.history.pushState({ view: 'home' }, '', '');
     setCurrentPage('home');
     setSelectedMaterial(null);
     setSelectedCategory(null);
@@ -383,17 +482,20 @@ export default function SanzeCatalog() {
   };
 
   const goToMaterial = (material) => {
+    window.history.pushState({ view: 'material', material }, '', '');
     setSelectedMaterial(material);
     setSelectedCategory(null);
     setSelectedProduct(null);
   };
 
   const goToCategory = (category) => {
+    window.history.pushState({ view: 'category', material: selectedMaterial, category }, '', '');
     setSelectedCategory(category);
     setSelectedProduct(null);
   };
 
   const viewProductDetail = (product) => {
+    window.history.pushState({ view: 'product', material: selectedMaterial, category: selectedCategory, product }, '', '');
     setSelectedProduct(product);
   };
 
@@ -421,7 +523,7 @@ export default function SanzeCatalog() {
   const handleWhatsAppContact = (product) => {
     const phoneNumber = '528661005158'; // Joyería Sanze Phone
     const matName = materialNames[product.material] || product.material;
-    const message = `Hola Joyería Sanze, estoy interesado en recibir información de la pieza de catálogo:\n\n*${product.name}*\nMaterial: ${matName}\nCategoría: ${product.category}\nPrecio: ${product.price}\n\nEnlace: ${window.location.href}`;
+    const message = `Hola Joyería Sanze, estoy interesado en recibir información de la pieza de catálogo:\n\n*${product.name}*\nMaterial: ${matName}\nCategoría: ${product.category}\nPrecio: ${product.price}\n\nEnlace: https://joyeriasanze.qzz.io/`;
     const encodedText = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedText}`, '_blank');
   };
@@ -440,9 +542,53 @@ export default function SanzeCatalog() {
     if (window.confirm("¿Seguro que quieres borrar tus cambios locales y volver a lo que está guardado en productos.json?")) {
       localStorage.removeItem('sanze_catalog_products_v2');
       setProducts(initialProductsData);
-      window.location.reload();
+      
+      if (isConfigured && db) {
+        set(ref(db, 'products'), initialProductsData)
+          .then(() => {
+            window.location.reload();
+          })
+          .catch(err => {
+            console.error("Error resetting catalog in Firebase:", err);
+            window.location.reload();
+          });
+      } else {
+        window.location.reload();
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        backgroundColor: '#060705',
+        color: '#FFFBF4',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          border: '3px solid rgba(216, 207, 188, 0.1)',
+          borderTop: '3px solid #D8CFBC',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          marginBottom: '1.5rem'
+        }} />
+        <p style={{ letterSpacing: '0.15em', fontSize: '0.85rem', color: '#9a9184', textTransform: 'uppercase' }}>Cargando Catálogo...</p>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-main)', minHeight: '100vh', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif", position: 'relative', overflowX: 'hidden' }}>
