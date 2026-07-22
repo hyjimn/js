@@ -244,18 +244,7 @@ export default function SanzeCatalog() {
     const saved = localStorage.getItem('sanze_catalog_products_v2');
     if (saved) {
       try {
-        const data = JSON.parse(saved);
-        Object.keys(data).forEach(mat => {
-          if (data[mat] && data[mat]['Arista']) {
-            if (!data[mat]['Arete']) data[mat]['Arete'] = [];
-            data[mat]['Arista'].forEach(p => {
-              p.category = 'Arete';
-              data[mat]['Arete'].push(p);
-            });
-            delete data[mat]['Arista'];
-          }
-        });
-        return data;
+        return JSON.parse(saved);
       } catch (e) {
         console.error("Error parsing saved products", e);
       }
@@ -276,21 +265,6 @@ export default function SanzeCatalog() {
     const unsubscribe = onValue(productsRef, (snapshot) => {
       let data = snapshot.val();
       if (data) {
-        let needsUpdate = false;
-        Object.keys(data).forEach(mat => {
-          if (data[mat] && data[mat]['Arista']) {
-            if (!data[mat]['Arete']) data[mat]['Arete'] = [];
-            data[mat]['Arista'].forEach(p => {
-              p.category = 'Arete';
-              data[mat]['Arete'].push(p);
-            });
-            delete data[mat]['Arista'];
-            needsUpdate = true;
-          }
-        });
-        if (needsUpdate) {
-          set(ref(db, 'products'), data);
-        }
         setProducts(data);
       } else {
         // If database is empty, initialize it with local products
