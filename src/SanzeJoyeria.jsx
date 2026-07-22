@@ -2444,7 +2444,7 @@ export default function SanzeCatalog() {
             <div className="back-link" onClick={() => goToCategory(null)}>← Volver a {materialNames[selectedMaterial]}</div>
             <h1 className="section-title">{selectedCategory}</h1>
 
-            {products[selectedMaterial]?.[selectedCategory] && products[selectedMaterial][selectedCategory].length > 0 ? (
+            {Array.isArray(products?.[selectedMaterial]?.[selectedCategory]) && products[selectedMaterial][selectedCategory].length > 0 ? (
               <div className="products-grid">
                 {products[selectedMaterial][selectedCategory].map((product) => (
                   <div
