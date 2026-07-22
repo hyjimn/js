@@ -142,6 +142,35 @@ const DEFAULT_PRODUCTS = {
   }
 };
 
+// Firebase converts JS arrays into indexed objects ({0: {...}, 1: {...}}).
+// This helper converts them back into proper arrays so .length, .map, spread, etc. work.
+const normalizeProducts = (data) => {
+  if (!data || typeof data !== 'object') return DEFAULT_PRODUCTS;
+  const normalized = {};
+  for (const material of Object.keys(data)) {
+    normalized[material] = {};
+    if (data[material] && typeof data[material] === 'object') {
+      for (const category of Object.keys(data[material])) {
+        const val = data[material][category];
+        if (Array.isArray(val)) {
+          normalized[material][category] = val;
+        } else if (val && typeof val === 'object') {
+          // Firebase indexed object → convert to array
+          normalized[material][category] = Object.values(val).map(item => {
+            if (item && item.images && !Array.isArray(item.images)) {
+              item.images = Object.values(item.images);
+            }
+            return item;
+          });
+        } else {
+          normalized[material][category] = [];
+        }
+      }
+    }
+  }
+  return normalized;
+};
+
 export default function SanzeCatalog() {
   const categories = {
     oro: ['Anillo', 'Arete', 'Arracada', 'Broquel', 'Cadena', 'Dije', 'Esclava', 'Huggie', 'Pulso'],
@@ -198,6 +227,7 @@ export default function SanzeCatalog() {
 
   const logoClicksRef = useRef(0);
   const logoClickTimeoutRef = useRef(null);
+  const savingRef = useRef(false);
 
   const promptAdminPassword = async () => {
     const password = window.prompt("Ingrese la contraseña de administrador:");
@@ -263,9 +293,11 @@ export default function SanzeCatalog() {
     const productsRef = ref(db, 'products');
     
     const unsubscribe = onValue(productsRef, (snapshot) => {
+      // Don't overwrite local state while a save is in progress
+      if (savingRef.current) return;
       let data = snapshot.val();
       if (data) {
-        setProducts(data);
+        setProducts(normalizeProducts(data));
       } else {
         // If database is empty, initialize it with local products
         setProducts(initialProductsData || DEFAULT_PRODUCTS);
@@ -338,20 +370,37 @@ export default function SanzeCatalog() {
         images: formData.images
       };
 
+      // Ensure existing category data is always a proper array
+      const existingItems = Array.isArray(products[formData.material]?.[formData.category])
+        ? products[formData.material][formData.category]
+        : (products[formData.material]?.[formData.category]
+            ? Object.values(products[formData.material][formData.category])
+            : []);
+
       const updatedProducts = {
         ...products,
         [formData.material]: {
           ...products[formData.material],
-          [formData.category]: [...(products[formData.material]?.[formData.category] || []), newProduct]
+          [formData.category]: [...existingItems, newProduct]
         }
       };
 
+      // Block the Firebase listener from overwriting our local state
+      savingRef.current = true;
       setProducts(updatedProducts);
 
       if (isConfigured && db) {
-        set(ref(db, 'products'), updatedProducts).catch(err => {
-          console.error("Error saving new product to Firebase:", err);
-        });
+        set(ref(db, 'products'), updatedProducts)
+          .then(() => {
+            // Allow listener to resume after Firebase confirms the write
+            setTimeout(() => { savingRef.current = false; }, 500);
+          })
+          .catch(err => {
+            console.error("Error saving new product to Firebase:", err);
+            savingRef.current = false;
+          });
+      } else {
+        savingRef.current = false;
       }
 
       setFormData({
@@ -399,11 +448,15 @@ export default function SanzeCatalog() {
         category: editFormData.category,
         images: editFormData.images
       };
-      const copy = JSON.parse(JSON.stringify(products));
+      const copy = normalizeProducts(JSON.parse(JSON.stringify(products)));
       Object.keys(copy).forEach(mat => {
         if (copy[mat]) {
           Object.keys(copy[mat]).forEach(cat => {
-            copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
+            if (Array.isArray(copy[mat][cat])) {
+              copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
+            } else {
+              copy[mat][cat] = [];
+            }
           });
         }
       });
@@ -415,14 +468,22 @@ export default function SanzeCatalog() {
       }
       copy[editFormData.material][editFormData.category].push(updated);
       
+      savingRef.current = true;
       setProducts(copy);
       setSelectedProduct(updated);
       setShowEditForm(false);
 
       if (isConfigured && db) {
-        set(ref(db, 'products'), copy).catch(err => {
-          console.error("Error saving updated product to Firebase:", err);
-        });
+        set(ref(db, 'products'), copy)
+          .then(() => {
+            setTimeout(() => { savingRef.current = false; }, 500);
+          })
+          .catch(err => {
+            console.error("Error saving updated product to Firebase:", err);
+            savingRef.current = false;
+          });
+      } else {
+        savingRef.current = false;
       }
     } else {
       alert("Por favor, llena todos los campos y añade al menos una imagen o video.");
@@ -464,22 +525,34 @@ export default function SanzeCatalog() {
   };
 
   const deleteProduct = (productId) => {
-    const newProducts = { ...products };
+    const newProducts = normalizeProducts(JSON.parse(JSON.stringify(products)));
     Object.keys(newProducts).forEach(material => {
       if (newProducts[material]) {
-        newProducts[material] = { ...newProducts[material] };
         Object.keys(newProducts[material]).forEach(category => {
-          newProducts[material][category] = newProducts[material][category].filter(p => p.id !== productId);
+          if (Array.isArray(newProducts[material][category])) {
+            newProducts[material][category] = newProducts[material][category].filter(p => p.id !== productId);
+          } else {
+            newProducts[material][category] = [];
+          }
         });
       }
     });
+
+    savingRef.current = true;
     setProducts(newProducts);
     setSelectedProduct(null);
 
     if (isConfigured && db) {
-      set(ref(db, 'products'), newProducts).catch(err => {
-        console.error("Error deleting product from Firebase:", err);
-      });
+      set(ref(db, 'products'), newProducts)
+        .then(() => {
+          setTimeout(() => { savingRef.current = false; }, 500);
+        })
+        .catch(err => {
+          console.error("Error deleting product from Firebase:", err);
+          savingRef.current = false;
+        });
+    } else {
+      savingRef.current = false;
     }
   };
 
