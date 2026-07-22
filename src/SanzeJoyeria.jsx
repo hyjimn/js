@@ -312,7 +312,7 @@ export default function SanzeCatalog() {
       };
       reader.readAsDataURL(file);
     });
-    e.target.value = null;
+    e.target.value = '';
   };
 
   const handleAddImageUrl = () => {
@@ -442,7 +442,7 @@ export default function SanzeCatalog() {
       };
       reader.readAsDataURL(file);
     });
-    e.target.value = null;
+    e.target.value = '';
   };
 
   const handleAddEditImageUrl = () => {
