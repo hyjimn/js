@@ -153,10 +153,15 @@ const normalizeProducts = (data) => {
       for (const category of Object.keys(data[material])) {
         const val = data[material][category];
         if (Array.isArray(val)) {
-          normalized[material][category] = val;
+          normalized[material][category] = val.filter(Boolean).map(item => {
+            if (item && item.images && !Array.isArray(item.images)) {
+              item.images = Object.values(item.images);
+            }
+            return item;
+          });
         } else if (val && typeof val === 'object') {
           // Firebase indexed object → convert to array
-          normalized[material][category] = Object.values(val).map(item => {
+          normalized[material][category] = Object.values(val).filter(Boolean).map(item => {
             if (item && item.images && !Array.isArray(item.images)) {
               item.images = Object.values(item.images);
             }
@@ -311,7 +316,11 @@ export default function SanzeCatalog() {
 
   // Save to localStorage when products change
   useEffect(() => {
-    localStorage.setItem('sanze_catalog_products_v2', JSON.stringify(products));
+    try {
+      localStorage.setItem('sanze_catalog_products_v2', JSON.stringify(products));
+    } catch (e) {
+      console.warn("Error al guardar en localStorage (posible exceso de cuota):", e);
+    }
   }, [products]);
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -378,7 +387,7 @@ export default function SanzeCatalog() {
       const updatedProducts = {
         ...products,
         [formData.material]: {
-          ...products[formData.material],
+          ...(products[formData.material] || {}),
           [formData.category]: [...existingItems, newProduct]
         }
       };
@@ -599,9 +608,9 @@ export default function SanzeCatalog() {
 
   const filteredProducts = searchQuery.trim() 
     ? getAllProducts().filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (p.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
 
