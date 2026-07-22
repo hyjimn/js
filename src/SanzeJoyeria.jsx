@@ -261,8 +261,6 @@ export default function SanzeCatalog() {
     }, 5000);
   };
 
-
-
   useEffect(() => {
     setActiveImageIndex(0);
   }, [selectedProduct]);
@@ -587,9 +585,12 @@ export default function SanzeCatalog() {
   const getAllProducts = () => {
     const list = [];
     Object.keys(products).forEach(material => {
+      if (!products[material] || typeof products[material] !== 'object') return;
       Object.keys(products[material]).forEach(category => {
-        products[material][category].forEach(p => {
-          list.push(p);
+        const items = products[material][category];
+        const arr = Array.isArray(items) ? items : (items ? Object.values(items) : []);
+        arr.forEach(p => {
+          if (p && p.name) list.push(p);
         });
       });
     });
