@@ -2484,11 +2484,7 @@ export default function SanzeCatalog() {
                   </div>
                 </div>
 
-                <section className="section" style={{ textAlign: 'center', paddingBottom: '8rem' }}>
-                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '1.5rem', fontStyle: 'italic', lineHeight: '1.8', color: 'rgba(255, 251, 244, 0.70)', maxWidth: '700px', margin: '0 auto', fontWeight: 300 }}>
-                    "Joyas exclusivas diseñadas para reflejar tu elegancia natural y trascender el tiempo."
-                  </p>
-                </section>
+
               </>
             )}
           </>
