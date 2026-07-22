@@ -649,7 +649,7 @@ export default function SanzeCatalog() {
         .header {
           position: sticky;
           top: 0;
-          background-color: rgba(6, 7, 5, 0.92);
+          background-color: #000000;
           backdrop-filter: blur(25px);
           -webkit-backdrop-filter: blur(25px);
           border-bottom: 1px solid var(--border);
@@ -1465,7 +1465,7 @@ export default function SanzeCatalog() {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(6, 7, 5, 0.92);
+          background-color: #000000;
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
           display: flex;
@@ -1941,7 +1941,7 @@ export default function SanzeCatalog() {
           <div className="nav-link" onClick={() => goToMaterial('oro')}>Oro</div>
           <div className="nav-link" onClick={() => goToMaterial('plata')}>Plata</div>
         </nav>
-        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }}>Joyería Sanze</div>
+        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "center" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain" }} /></div>
         <nav className="header-nav right-nav">
           <div className="nav-link" onClick={() => goToMaterial('oro_laminado')}>Oro Laminado</div>
           <div className="nav-link" onClick={goHome}>Colección</div>
