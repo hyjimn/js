@@ -2563,7 +2563,7 @@ export default function SanzeCatalog() {
         <div className="footer-content">
           <div className="footer-section">
             <h3>Joyería Sanze</h3>
-            <p style={{ marginBottom: '1.5rem' }}>Elegancia y distinción esculpida en metales preciosos. Diseños hechos para contar tu historia.</p>
+
             <p>&copy; {new Date().getFullYear()} Joyería Sanze. Todos los derechos reservados.</p>
           </div>
           <div className="footer-section">
