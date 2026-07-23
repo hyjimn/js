@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
 import initialProductsData from './productos.json';
-import { db, isConfigured } from './firebase';
+import { db, isConfigured, storage } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 function SparkleCanvas() {
   const canvasRef = useRef(null);
@@ -324,6 +325,8 @@ export default function SanzeCatalog() {
   }, [products]);
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [formError, setFormError] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [showEditForm, setShowEditForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -342,14 +345,11 @@ export default function SanzeCatalog() {
     const files = Array.from(e.target.files);
     files.forEach(file => {
       const isVideo = file.type.startsWith('video/');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFormData(prev => ({
-          ...prev,
-          images: [...prev.images, { src: event.target.result, isVideo, id: Date.now() + Math.random() }]
-        }));
-      };
-      reader.readAsDataURL(file);
+      const objectUrl = URL.createObjectURL(file);
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, { src: objectUrl, file: file, isVideo, id: Date.now() + Math.random() }]
+      }));
     });
     e.target.value = '';
   };
@@ -365,62 +365,69 @@ export default function SanzeCatalog() {
     }
   };
 
-  const addProduct = () => {
+  const addProduct = async () => {
     if (formData.name && formData.price && formData.material && formData.category && formData.images.length > 0) {
-      const newProduct = {
-        id: Date.now(),
-        name: formData.name,
-        price: formData.price.startsWith('$') ? formData.price : `$${formData.price}`,
-        description: formData.description,
-        material: formData.material,
-        category: formData.category,
-        images: formData.images
-      };
-
-      // Ensure existing category data is always a proper array
-      const existingItems = Array.isArray(products[formData.material]?.[formData.category])
-        ? products[formData.material][formData.category]
-        : (products[formData.material]?.[formData.category]
-            ? Object.values(products[formData.material][formData.category])
-            : []);
-
-      const updatedProducts = {
-        ...products,
-        [formData.material]: {
-          ...(products[formData.material] || {}),
-          [formData.category]: [...existingItems, newProduct]
+      setIsUploading(true);
+      setFormError('');
+      try {
+        const finalImages = [];
+        for (const img of formData.images) {
+          if (img.file) {
+            const fileExt = img.file.name.split('.').pop();
+            const fileName = `products/${formData.category}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const fileRef = storageRef(storage, fileName);
+            await uploadBytes(fileRef, img.file);
+            const downloadUrl = await getDownloadURL(fileRef);
+            finalImages.push({ src: downloadUrl, isVideo: img.isVideo, id: img.id });
+          } else {
+            finalImages.push({ src: img.src, isVideo: img.isVideo, id: img.id });
+          }
         }
-      };
 
-      // Block the Firebase listener from overwriting our local state
-      savingRef.current = true;
-      setProducts(updatedProducts);
+        const newProduct = {
+          id: Date.now(),
+          name: formData.name,
+          price: formData.price.startsWith('$') ? formData.price : `$${formData.price}`,
+          description: formData.description,
+          material: formData.material,
+          category: formData.category,
+          images: finalImages
+        };
 
-      if (isConfigured && db) {
-        set(ref(db, 'products'), updatedProducts)
-          .then(() => {
-            // Allow listener to resume after Firebase confirms the write
-            setTimeout(() => { savingRef.current = false; }, 500);
-          })
-          .catch(err => {
-            console.error("Error saving new product to Firebase:", err);
-            savingRef.current = false;
-          });
-      } else {
+        const existingItems = Array.isArray(products[formData.material]?.[formData.category])
+          ? products[formData.material][formData.category]
+          : (products[formData.material]?.[formData.category]
+              ? Object.values(products[formData.material][formData.category])
+              : []);
+
+        const updatedProducts = {
+          ...products,
+          [formData.material]: {
+            ...(products[formData.material] || {}),
+            [formData.category]: [...existingItems, newProduct]
+          }
+        };
+
+        savingRef.current = true;
+        setProducts(updatedProducts);
+
+        if (isConfigured && db) {
+          await set(ref(db, `products/${formData.material}/${formData.category}/${newProduct.id}`), newProduct);
+        }
+        
+        setTimeout(() => { savingRef.current = false; }, 500);
+
+        setFormData({ name: '', price: '', description: '', material: '', category: '', images: [] });
+        setShowAddForm(false);
+      } catch (err) {
+        console.error("Error saving new product to Firebase:", err);
+        setFormError("Ocurrió un error al subir la pieza. Intenta de nuevo.");
         savingRef.current = false;
+      } finally {
+        setIsUploading(false);
       }
-
-      setFormData({
-        name: '',
-        price: '',
-        description: '',
-        material: '',
-        category: '',
-        images: []
-      });
-      setShowAddForm(false);
     } else {
-      alert("Por favor, llena todos los campos y añade al menos una imagen o video.");
+      setFormError("Por favor, llena todos los campos y añade al menos una imagen o video.");
     }
   };
 
@@ -444,56 +451,96 @@ export default function SanzeCatalog() {
     setShowEditForm(true);
   };
 
-  const updateProduct = () => {
+  const updateProduct = async () => {
     if (editFormData.name && editFormData.price && editFormData.material && editFormData.category && editFormData.images.length > 0) {
-      const updated = {
-        id: editingProductId,
-        name: editFormData.name,
-        price: editFormData.price.startsWith('$') ? editFormData.price : `$${editFormData.price}`,
-        description: editFormData.description,
-        material: editFormData.material,
-        category: editFormData.category,
-        images: editFormData.images
-      };
-      const copy = normalizeProducts(JSON.parse(JSON.stringify(products)));
-      Object.keys(copy).forEach(mat => {
-        if (copy[mat]) {
-          Object.keys(copy[mat]).forEach(cat => {
-            if (Array.isArray(copy[mat][cat])) {
-              copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
-            } else {
-              copy[mat][cat] = [];
-            }
-          });
+      setIsUploading(true);
+      setFormError('');
+      try {
+        const finalImages = [];
+        for (const img of editFormData.images) {
+          if (img.file) {
+            const fileExt = img.file.name.split('.').pop();
+            const fileName = `products/${editFormData.category}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const fileRef = storageRef(storage, fileName);
+            await uploadBytes(fileRef, img.file);
+            const downloadUrl = await getDownloadURL(fileRef);
+            finalImages.push({ src: downloadUrl, isVideo: img.isVideo, id: img.id });
+          } else {
+            finalImages.push({ src: img.src, isVideo: img.isVideo, id: img.id });
+          }
         }
-      });
-      if (!copy[editFormData.material]) {
-        copy[editFormData.material] = {};
-      }
-      if (!copy[editFormData.material][editFormData.category]) {
-        copy[editFormData.material][editFormData.category] = [];
-      }
-      copy[editFormData.material][editFormData.category].push(updated);
-      
-      savingRef.current = true;
-      setProducts(copy);
-      setSelectedProduct(updated);
-      setShowEditForm(false);
 
-      if (isConfigured && db) {
-        set(ref(db, 'products'), copy)
-          .then(() => {
-            setTimeout(() => { savingRef.current = false; }, 500);
-          })
-          .catch(err => {
-            console.error("Error saving updated product to Firebase:", err);
-            savingRef.current = false;
-          });
-      } else {
+        const updated = {
+          id: editingProductId,
+          name: editFormData.name,
+          price: editFormData.price.startsWith('$') ? editFormData.price : `$${editFormData.price}`,
+          description: editFormData.description,
+          material: editFormData.material,
+          category: editFormData.category,
+          images: finalImages
+        };
+
+        // Find old material/category of this product before removing
+        let oldMaterial = null;
+        let oldCategory = null;
+        Object.keys(products).forEach(mat => {
+          if (products[mat]) {
+            Object.keys(products[mat]).forEach(cat => {
+              const items = Array.isArray(products[mat][cat]) ? products[mat][cat] : [];
+              if (items.some(p => p && p.id === editingProductId)) {
+                oldMaterial = mat;
+                oldCategory = cat;
+              }
+            });
+          }
+        });
+
+        const copy = normalizeProducts(JSON.parse(JSON.stringify(products)));
+        Object.keys(copy).forEach(mat => {
+          if (copy[mat]) {
+            Object.keys(copy[mat]).forEach(cat => {
+              if (Array.isArray(copy[mat][cat])) {
+                copy[mat][cat] = copy[mat][cat].filter(p => p.id !== editingProductId);
+              } else {
+                copy[mat][cat] = [];
+              }
+            });
+          }
+        });
+        if (!copy[editFormData.material]) {
+          copy[editFormData.material] = {};
+        }
+        if (!copy[editFormData.material][editFormData.category]) {
+          copy[editFormData.material][editFormData.category] = [];
+        }
+        copy[editFormData.material][editFormData.category].push(updated);
+        
+        savingRef.current = true;
+        setProducts(copy);
+        setSelectedProduct(updated);
+
+        if (isConfigured && db) {
+          // Write only the affected categories
+          const newCatArray = copy[editFormData.material][editFormData.category];
+          await set(ref(db, `products/${editFormData.material}/${editFormData.category}`), newCatArray);
+          // If the product moved categories, also update the old one
+          if (oldMaterial && oldCategory && (oldMaterial !== editFormData.material || oldCategory !== editFormData.category)) {
+            const oldCatArray = copy[oldMaterial]?.[oldCategory] || [];
+            await set(ref(db, `products/${oldMaterial}/${oldCategory}`), oldCatArray);
+          }
+        }
+        
+        setTimeout(() => { savingRef.current = false; }, 500);
+        setShowEditForm(false);
+      } catch (err) {
+        console.error("Error saving updated product to Firebase:", err);
+        setFormError("Ocurrió un error al actualizar la pieza. Intenta de nuevo.");
         savingRef.current = false;
+      } finally {
+        setIsUploading(false);
       }
     } else {
-      alert("Por favor, llena todos los campos y añade al menos una imagen o video.");
+      setFormError("Por favor, llena todos los campos y añade al menos una imagen o video.");
     }
   };
 
@@ -501,14 +548,11 @@ export default function SanzeCatalog() {
     const files = Array.from(e.target.files);
     files.forEach(file => {
       const isVideo = file.type.startsWith('video/');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setEditFormData(prev => ({
-          ...prev,
-          images: [...prev.images, { src: event.target.result, isVideo, id: Date.now() + Math.random() }]
-        }));
-      };
-      reader.readAsDataURL(file);
+      const objectUrl = URL.createObjectURL(file);
+      setEditFormData(prev => ({
+        ...prev,
+        images: [...prev.images, { src: objectUrl, file: file, isVideo, id: Date.now() + Math.random() }]
+      }));
     });
     e.target.value = '';
   };
@@ -532,6 +576,21 @@ export default function SanzeCatalog() {
   };
 
   const deleteProduct = (productId) => {
+    // Find the product's material and category before deleting
+    let foundMaterial = null;
+    let foundCategory = null;
+    Object.keys(products).forEach(material => {
+      if (products[material]) {
+        Object.keys(products[material]).forEach(category => {
+          const items = Array.isArray(products[material][category]) ? products[material][category] : [];
+          if (items.some(p => p && p.id === productId)) {
+            foundMaterial = material;
+            foundCategory = category;
+          }
+        });
+      }
+    });
+
     const newProducts = normalizeProducts(JSON.parse(JSON.stringify(products)));
     Object.keys(newProducts).forEach(material => {
       if (newProducts[material]) {
@@ -549,8 +608,10 @@ export default function SanzeCatalog() {
     setProducts(newProducts);
     setSelectedProduct(null);
 
-    if (isConfigured && db) {
-      set(ref(db, 'products'), newProducts)
+    if (isConfigured && db && foundMaterial && foundCategory) {
+      // Write only the affected category array instead of entire catalog
+      const updatedCategoryArray = newProducts[foundMaterial]?.[foundCategory] || [];
+      set(ref(db, `products/${foundMaterial}/${foundCategory}`), updatedCategoryArray)
         .then(() => {
           setTimeout(() => { savingRef.current = false; }, 500);
         })
@@ -2109,7 +2170,7 @@ export default function SanzeCatalog() {
 
       {/* Float Add Piece Modal */}
       {showAddForm && (
-        <div className="modal-overlay" onClick={() => setShowAddForm(false)}>
+        <div className="modal-overlay" onClick={() => !isUploading && setShowAddForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Añadir Nueva Pieza</h2>
 
@@ -2206,7 +2267,7 @@ export default function SanzeCatalog() {
                 <div className="image-preview">
                   {formData.images.map((img) => (
                     <div key={img.id} className="preview-item">
-                      {img.isVideo ? <video src={img.src} muted /> : <img src={img.src} alt="preview" />}
+                      {img.isVideo ? <video src={img.src} autoPlay loop muted playsInline /> : <img src={img.src} alt="preview" />}
                       <div className="remove-image" onClick={() => removeImage(img.id)}>
                         <X size={18} color="#f5f1ed" />
                       </div>
@@ -2216,9 +2277,18 @@ export default function SanzeCatalog() {
               )}
             </div>
 
+            {formError && (
+              <div style={{ color: '#ef4444', fontSize: '0.85rem', fontFamily: "'Plus Jakarta Sans', sans-serif", padding: '0.6rem 1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', marginBottom: '0.5rem' }}>
+                {formError}
+              </div>
+            )}
             <div className="form-actions">
-              <button className="btn-modal btn-modal-save" onClick={addProduct}>Guardar Pieza</button>
-              <button className="btn-modal btn-modal-cancel" onClick={() => setShowAddForm(false)}>Cancelar</button>
+              <button className="btn-modal btn-modal-save" onClick={addProduct} disabled={isUploading}>
+                {isUploading ? "Subiendo..." : "Guardar Pieza"}
+              </button>
+              <button className="btn-modal btn-modal-cancel" onClick={() => { setFormError(''); setShowAddForm(false); }} disabled={isUploading}>
+                {isUploading ? "Espera..." : "Cancelar"}
+              </button>
             </div>
           </div>
         </div>
@@ -2226,7 +2296,7 @@ export default function SanzeCatalog() {
 
       {/* Edit Product Modal */}
       {showEditForm && (
-        <div className="modal-overlay" onClick={() => setShowEditForm(false)}>
+        <div className="modal-overlay" onClick={() => !isUploading && setShowEditForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Editar Pieza</h2>
 
@@ -2283,7 +2353,7 @@ export default function SanzeCatalog() {
                 <div className="image-preview">
                   {editFormData.images.map((img) => (
                     <div key={img.id} className="preview-item">
-                      {img.isVideo ? <video src={img.src} muted /> : <img src={img.src} alt="preview" />}
+                      {img.isVideo ? <video src={img.src} autoPlay loop muted playsInline /> : <img src={img.src} alt="preview" />}
                       <div className="remove-image" onClick={() => removeEditImage(img.id)}>
                         <X size={18} color="#FFFBF4" />
                       </div>
@@ -2311,9 +2381,18 @@ export default function SanzeCatalog() {
               </div>
             </div>
 
+            {formError && (
+              <div style={{ color: '#ef4444', fontSize: '0.85rem', fontFamily: "'Plus Jakarta Sans', sans-serif", padding: '0.6rem 1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', marginBottom: '0.5rem' }}>
+                {formError}
+              </div>
+            )}
             <div className="form-actions">
-              <button className="btn-modal btn-modal-save" onClick={updateProduct}>Guardar Cambios</button>
-              <button className="btn-modal btn-modal-cancel" onClick={() => setShowEditForm(false)}>Cancelar</button>
+              <button className="btn-modal btn-modal-save" onClick={updateProduct} disabled={isUploading}>
+                {isUploading ? "Subiendo..." : "Guardar Cambios"}
+              </button>
+              <button className="btn-modal btn-modal-cancel" onClick={() => { setFormError(''); setShowEditForm(false); }} disabled={isUploading}>
+                {isUploading ? "Espera..." : "Cancelar"}
+              </button>
             </div>
           </div>
         </div>
