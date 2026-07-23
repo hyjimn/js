@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
+import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2, Menu, MessageCircle } from 'lucide-react';
 import initialProductsData from './productos.json';
 import { db, isConfigured, auth } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
@@ -197,6 +197,7 @@ export default function SanzeCatalog() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (auth) {
@@ -294,6 +295,11 @@ export default function SanzeCatalog() {
   useEffect(() => {
     setActiveImageIndex(0);
   }, [selectedProduct]);
+
+  // Scroll to top on navigation changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage, selectedMaterial, selectedCategory, selectedProduct]);
   
   const [loading, setLoading] = useState(isConfigured);
 
@@ -928,6 +934,95 @@ export default function SanzeCatalog() {
 
         .nav-link:hover::after {
           width: 100%;
+        }
+
+        /* Utilities */
+        .mobile-only { display: none; }
+        
+        .search-bar-container-header {
+          position: relative;
+          width: 220px;
+        }
+
+        .search-bar-header {
+          width: 100%;
+          padding: 0.5rem 1rem 0.5rem 2.2rem;
+          background-color: var(--bg-secondary);
+          border: 1px solid var(--border);
+          border-radius: var(--rounded-md);
+          color: var(--text-main);
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 0.85rem;
+          transition: var(--transition);
+        }
+
+        .search-bar-header:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 10px var(--accent-glow);
+          background-color: var(--bg-card);
+        }
+
+        .global-wa-btn {
+          position: fixed;
+          bottom: 2.5rem;
+          left: 2.5rem;
+          width: 56px;
+          height: 56px;
+          background: linear-gradient(135deg, #25d366, #1fa855);
+          color: white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4);
+          z-index: 50;
+          cursor: pointer;
+          transition: var(--transition);
+          animation: waPulse 2s infinite;
+        }
+
+        .global-wa-btn:hover {
+          transform: scale(1.1);
+          animation: none;
+        }
+
+        @keyframes waPulse {
+          0% { box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4), 0 0 0 0 rgba(37, 211, 102, 0.45); }
+          70% { box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4), 0 0 0 14px rgba(37, 211, 102, 0); }
+          100% { box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4), 0 0 0 0 rgba(37, 211, 102, 0); }
+        }
+
+        .mobile-menu-overlay {
+          position: fixed;
+          top: 85px;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(6, 7, 5, 0.97);
+          backdrop-filter: blur(15px);
+          -webkit-backdrop-filter: blur(15px);
+          z-index: 85;
+          display: flex;
+          flex-direction: column;
+          padding: 3rem 2rem;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .mobile-nav {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        .mobile-nav .nav-link {
+          font-size: 1.25rem;
+          text-align: center;
+        }
+
+        .mobile-search {
+          width: 100%;
+          margin-bottom: 2rem;
         }
 
         /* Search input styling */
@@ -2097,16 +2192,22 @@ export default function SanzeCatalog() {
         }
 
         @media (max-width: 768px) {
-          .header {
-            padding: 1.2rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
+          .desktop-only {
+            display: none !important;
           }
-
-          .header-nav.center-nav {
-            flex-wrap: wrap;
-            gap: 1rem;
+          .mobile-only {
+            display: flex;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-main);
+          }
+          .header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
           }
 
           .hero-title {
@@ -2208,19 +2309,61 @@ export default function SanzeCatalog() {
 
       {/* Main Luxury Header */}
       <header className="header">
-        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "flex-start", userSelect: "none", WebkitUserSelect: "none" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain", pointerEvents: "none" }} /></div>
-        <nav className="header-nav center-nav">
+        <div className="logo" onClick={() => { goHome(); setIsMobileMenuOpen(false); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "flex-start", userSelect: "none", WebkitUserSelect: "none", cursor: "pointer" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain", pointerEvents: "none" }} /></div>
+        <nav className="header-nav center-nav desktop-only">
           <div className="nav-link" onClick={() => goToMaterial('oro')}>Oro</div>
           <div className="nav-link" onClick={() => goToMaterial('plata')}>Plata</div>
           <div className="nav-link" onClick={() => goToMaterial('oro_laminado')}>Oro Laminado</div>
           <div className="nav-link" onClick={goHome}>Colección</div>
         </nav>
         <div className="header-actions">
+          {/* Global Search Bar */}
+          <div className="search-bar-container-header desktop-only">
+            <Search className="search-icon" size={16} />
+            <input 
+              type="text" 
+              className="search-bar-header" 
+              placeholder="Buscar..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
           {isAdmin && (
-            <div className="nav-link" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); }} style={{ color: '#ef4444', fontWeight: 'bold' }}>Salir Admin</div>
+            <div className="nav-link desktop-only" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); }} style={{ color: '#ef4444', fontWeight: 'bold' }}>Salir Admin</div>
           )}
+          {/* Hamburger Menu Icon */}
+          <div className="mobile-menu-toggle mobile-only" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+            {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+          </div>
         </div>
       </header>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="mobile-menu-overlay mobile-only">
+          <nav className="mobile-nav">
+            <div className="search-bar-container-header mobile-search">
+              <Search className="search-icon" size={16} />
+              <input 
+                type="text" 
+                className="search-bar-header" 
+                placeholder="Buscar piezas..."
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                }}
+              />
+            </div>
+            <div className="nav-link" onClick={() => { goToMaterial('oro'); setIsMobileMenuOpen(false); }}>Oro</div>
+            <div className="nav-link" onClick={() => { goToMaterial('plata'); setIsMobileMenuOpen(false); }}>Plata</div>
+            <div className="nav-link" onClick={() => { goToMaterial('oro_laminado'); setIsMobileMenuOpen(false); }}>Oro Laminado</div>
+            <div className="nav-link" onClick={() => { goHome(); setIsMobileMenuOpen(false); }}>Colección</div>
+            {isAdmin && (
+              <div className="nav-link" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); setIsMobileMenuOpen(false); }} style={{ color: '#ef4444' }}>Salir Admin</div>
+            )}
+          </nav>
+        </div>
+      )}
 
       {/* Float Add Piece Modal */}
       {showAddForm && (
@@ -2562,18 +2705,6 @@ export default function SanzeCatalog() {
             <section className="hero">
               <h1 className="hero-title">Sanze</h1>
               <p className="hero-subtitle">Oro, Plata & Oro Laminado</p>
-              
-              {/* Elegant search bar on home */}
-              <div className="search-bar-container">
-                <Search className="search-icon" size={18} />
-                <input 
-                  type="text" 
-                  className="search-bar" 
-                  placeholder="Buscar arracadas, cadenas, dijes..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-              </div>
             </section>
 
             {searchQuery.trim() ? (
@@ -2767,6 +2898,16 @@ export default function SanzeCatalog() {
           </div>
         </div>
       )}
+      {/* Global WhatsApp Button */}
+      <a 
+        href="https://wa.me/528661005158?text=Hola%20Joyería%20Sanze,%20estoy%20interesado%20en%20ver%20el%20catálogo"
+        target="_blank"
+        rel="noreferrer"
+        className="global-wa-btn"
+        title="Contáctanos por WhatsApp"
+      >
+        <MessageCircle size={28} />
+      </a>
     </div>
   );
 }
