@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
 import initialProductsData from './productos.json';
-import { db, isConfigured, storage } from './firebase';
+import { db, isConfigured } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 function SparkleCanvas() {
   const canvasRef = useRef(null);
@@ -373,12 +372,23 @@ export default function SanzeCatalog() {
         const finalImages = [];
         for (const img of formData.images) {
           if (img.file) {
-            const fileExt = img.file.name.split('.').pop();
-            const fileName = `products/${formData.category}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const fileRef = storageRef(storage, fileName);
-            await uploadBytes(fileRef, img.file);
-            const downloadUrl = await getDownloadURL(fileRef);
-            finalImages.push({ src: downloadUrl, isVideo: img.isVideo, id: img.id });
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', img.file);
+            formDataUpload.append('upload_preset', process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET || 'sanze_catalog');
+            const cloudName = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || 'i8ac7itq';
+            const resourceType = img.file.type.startsWith('video/') ? 'video' : 'image';
+            
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+              method: 'POST',
+              body: formDataUpload
+            });
+            const data = await res.json();
+            
+            if (data.secure_url) {
+              finalImages.push({ src: data.secure_url, isVideo: img.isVideo, id: img.id });
+            } else {
+              throw new Error(data.error?.message || 'Error uploading to Cloudinary');
+            }
           } else {
             finalImages.push({ src: img.src, isVideo: img.isVideo, id: img.id });
           }
@@ -459,12 +469,23 @@ export default function SanzeCatalog() {
         const finalImages = [];
         for (const img of editFormData.images) {
           if (img.file) {
-            const fileExt = img.file.name.split('.').pop();
-            const fileName = `products/${editFormData.category}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const fileRef = storageRef(storage, fileName);
-            await uploadBytes(fileRef, img.file);
-            const downloadUrl = await getDownloadURL(fileRef);
-            finalImages.push({ src: downloadUrl, isVideo: img.isVideo, id: img.id });
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', img.file);
+            formDataUpload.append('upload_preset', process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET || 'sanze_catalog');
+            const cloudName = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || 'i8ac7itq';
+            const resourceType = img.file.type.startsWith('video/') ? 'video' : 'image';
+            
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+              method: 'POST',
+              body: formDataUpload
+            });
+            const data = await res.json();
+            
+            if (data.secure_url) {
+              finalImages.push({ src: data.secure_url, isVideo: img.isVideo, id: img.id });
+            } else {
+              throw new Error(data.error?.message || 'Error uploading to Cloudinary');
+            }
           } else {
             finalImages.push({ src: img.src, isVideo: img.isVideo, id: img.id });
           }
