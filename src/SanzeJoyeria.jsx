@@ -856,22 +856,24 @@ export default function SanzeCatalog() {
           border-bottom: 1px solid var(--border);
           padding: 1.2rem 4rem;
           display: grid;
-          grid-template-columns: 1fr auto 1fr;
+          grid-template-columns: auto 1fr auto;
+          gap: 2rem;
           align-items: center;
           z-index: 90;
           transition: var(--transition);
         }
 
-        .header-nav.left-nav {
+        .header-nav.center-nav {
           display: flex;
-          gap: 2.2rem;
-          justify-content: flex-start;
+          gap: 2.5rem;
+          justify-content: center;
         }
 
-        .header-nav.right-nav {
+        .header-actions {
           display: flex;
-          gap: 2.2rem;
+          gap: 1.5rem;
           justify-content: flex-end;
+          align-items: center;
         }
 
         .logo {
@@ -1180,23 +1182,27 @@ export default function SanzeCatalog() {
 
         /* Categories Grid */
         .categories-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-          gap: 1.5rem;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.2rem;
           margin-bottom: 3rem;
+          justify-content: center;
         }
 
         .category-card {
           background-color: var(--bg-secondary);
           border: 1px solid var(--border);
-          padding: 2.2rem 1.5rem;
+          padding: 1rem 2.5rem;
           cursor: pointer;
           transition: var(--transition);
           text-align: center;
           position: relative;
           overflow: hidden;
-          border-radius: var(--rounded-md);
+          border-radius: 50px;
           animation: cardReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .category-card:nth-child(1) { animation-delay: 0.05s; }
@@ -2093,12 +2099,14 @@ export default function SanzeCatalog() {
         @media (max-width: 768px) {
           .header {
             padding: 1.2rem 1.5rem;
+            display: flex;
             flex-direction: column;
             gap: 1rem;
           }
 
-          .header-nav {
-            gap: 1.5rem;
+          .header-nav.center-nav {
+            flex-wrap: wrap;
+            gap: 1rem;
           }
 
           .hero-title {
@@ -2200,18 +2208,18 @@ export default function SanzeCatalog() {
 
       {/* Main Luxury Header */}
       <header className="header">
-        <nav className="header-nav left-nav">
+        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "flex-start", userSelect: "none", WebkitUserSelect: "none" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain", pointerEvents: "none" }} /></div>
+        <nav className="header-nav center-nav">
           <div className="nav-link" onClick={() => goToMaterial('oro')}>Oro</div>
           <div className="nav-link" onClick={() => goToMaterial('plata')}>Plata</div>
-        </nav>
-        <div className="logo" onClick={() => { goHome(); handleLogoClick(); }} style={{ background: "none", display: "flex", justifyContent: "center", userSelect: "none", WebkitUserSelect: "none" }}><img src="/logo.png" alt="Joyería Sanze" style={{ height: "60px", objectFit: "contain", pointerEvents: "none" }} /></div>
-        <nav className="header-nav right-nav">
           <div className="nav-link" onClick={() => goToMaterial('oro_laminado')}>Oro Laminado</div>
           <div className="nav-link" onClick={goHome}>Colección</div>
-          {isAdmin && (
-            <div className="nav-link" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); }} style={{ color: '#ef4444' }}>Salir Admin</div>
-          )}
         </nav>
+        <div className="header-actions">
+          {isAdmin && (
+            <div className="nav-link" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('sanze_admin_active'); }} style={{ color: '#ef4444', fontWeight: 'bold' }}>Salir Admin</div>
+          )}
+        </div>
       </header>
 
       {/* Float Add Piece Modal */}
