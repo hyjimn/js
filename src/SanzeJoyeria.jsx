@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Trash2, Plus, ChevronLeft, Send, Search, Download, RefreshCw, Edit2 } from 'lucide-react';
 import initialProductsData from './productos.json';
-import { db, isConfigured } from './firebase';
+import { db, isConfigured, auth } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 
 function SparkleCanvas() {
   const canvasRef = useRef(null);
@@ -190,9 +191,21 @@ export default function SanzeCatalog() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [enlargedMedia, setEnlargedMedia] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return sessionStorage.getItem('sanze_admin_active') === 'true';
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    if (auth) {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setIsAdmin(!!user);
+      });
+      return () => unsubscribe();
+    }
+  }, []);
 
   useEffect(() => {
     window.history.replaceState({ view: 'home' }, '', '');
@@ -234,36 +247,48 @@ export default function SanzeCatalog() {
   const logoClickTimeoutRef = useRef(null);
   const savingRef = useRef(false);
 
-  const promptAdminPassword = async () => {
-    const password = window.prompt("Ingrese la contraseña de administrador:");
-    if (!password) return;
-    
-    const msgBuffer = new TextEncoder().encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    // Hash de "Abril81"
-    if (hashHex === 'ebed7beef901d5f29bc6dd193ac316b8bbd19b82c7c797d87bbfa64cde9aac4d') {
-      setIsAdmin(true);
-      sessionStorage.setItem('sanze_admin_active', 'true');
-      alert("Acceso concedido. Modo Administrador activo.");
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      setShowLoginModal(false);
+      setLoginEmail('');
+      setLoginPassword('');
+    } catch (error) {
+      setLoginError('Credenciales incorrectas o error de conexión.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
+  };
+
+  const triggerLogin = () => {
+    if (isAdmin) {
+      handleLogout();
     } else {
-      alert("Contraseña incorrecta.");
+      setShowLoginModal(true);
     }
   };
 
   const handleLogoClick = () => {
     logoClicksRef.current += 1;
     if (logoClicksRef.current >= 3) {
-      promptAdminPassword();
+      triggerLogin();
       logoClicksRef.current = 0;
-      return;
     }
     clearTimeout(logoClickTimeoutRef.current);
     logoClickTimeoutRef.current = setTimeout(() => {
       logoClicksRef.current = 0;
-    }, 5000);
+    }, 1500);
   };
 
   useEffect(() => {
@@ -2690,6 +2715,49 @@ export default function SanzeCatalog() {
         <button className="add-btn" onClick={() => setShowAddForm(true)} title="Añadir nueva pieza">
           <Plus size={24} />
         </button>
+      )}
+      {showLoginModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              Acceso Administrativo
+            </h2>
+            <form onSubmit={handleLoginSubmit} className="modal-form">
+              <div className="form-group">
+                <label className="form-label">Correo Electrónico</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="admin@ejemplo.com"
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Contraseña</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {loginError && <div className="form-error">{loginError}</div>}
+
+              <div className="modal-actions" style={{ marginTop: '2rem' }}>
+                <button type="button" className="btn-cancel" onClick={() => setShowLoginModal(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-save" disabled={isLoggingIn}>
+                  {isLoggingIn ? 'Iniciando...' : 'Iniciar Sesión'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
